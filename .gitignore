@@ -10,6 +10,9 @@ venv/
 *.log
 .playwright-mcp/
 
+# Streamlit secrets (passwords etc.) — never commit
+.streamlit/secrets.toml
+
 # Bank-sensitive data & artifacts — NEVER commit (real NPWPs, faktur, amounts)
 *.xlsx
 *.xls

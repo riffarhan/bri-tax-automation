@@ -22,8 +22,34 @@ MONTHS_EN = {1: "January", 2: "February", 3: "March", 4: "April", 5: "May",
              11: "November", 12: "December"}
 
 st.set_page_config(page_title=APP_NAME, page_icon="🧾", layout="wide")
+
+
+def _password_ok() -> bool:
+    """Optional gate. If an 'app_password' secret is set (e.g. on a web deploy),
+    require it; with no secret (local run) the app is open."""
+    try:
+        pw = st.secrets["app_password"]
+    except Exception:
+        return True
+    if st.session_state.get("auth_ok"):
+        return True
+    st.title(APP_NAME)
+    with st.form("login"):
+        entered = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Enter")
+    if submitted and entered == pw:
+        st.session_state["auth_ok"] = True
+        st.rerun()
+    elif submitted:
+        st.error("Incorrect password.")
+    return False
+
+
+if not _password_ok():
+    st.stop()
+
 st.title(APP_NAME)
-st.caption(f"{APP_TAGLINE} · runs locally — no data leaves this machine")
+st.caption(APP_TAGLINE)
 
 # ---------------------------------------------------------------- sidebar: period + SAP
 with st.sidebar:
