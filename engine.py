@@ -17,8 +17,10 @@ Design notes (validated against April 2026 Palembang, see validate_april.py):
   * Nothing is silently dropped: ambiguous rows go to the exception report.
 """
 from __future__ import annotations
-import re
+import csv
 import datetime as dt
+import os
+import re
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -43,6 +45,22 @@ FM_IMPORT_FULL_COLUMNS = FM_IMPORT_COLUMNS + FULL_EXTRA_COLUMNS
 # keeps the raw Coretax value ('uncredited'/'credited') as in the Faktur Masukan
 # sheet; the upload template gets the code (uncredited -> 2).
 KONFIRMASI_CODE = {"uncredited": 2, "credited": 1}
+
+
+def _load_uker_master():
+    """kode_uker -> nama_uker, from the bundled slim master (names only)."""
+    path = os.path.join(os.path.dirname(__file__), "data", "uker_master.csv")
+    out = {}
+    try:
+        with open(path, newline="") as f:
+            for row in csv.DictReader(f):
+                out[int(row["kode_uker"])] = row["nama_uker"]
+    except (OSError, ValueError, KeyError):
+        pass
+    return out
+
+
+UKER_MASTER = _load_uker_master()   # exact uker names (master); ETB is the fallback
 
 
 @dataclass
@@ -352,7 +370,7 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
             "Nama Vendor": c.get("nama_penjual"),
             "Document Number SAP": dok,
             "Kode Uker": uker,
-            "Nama Uker": uker_names.get(uker) if uker is not None else None,
+            "Nama Uker": (UKER_MASTER.get(uker) or uker_names.get(uker)) if uker is not None else None,
             "Status Coretax": str(c.get("status") or "").upper(),
             "DPP": round(dpp_v) if dpp_v else None,
             "Tarif": round(ppn_fak / dpp_v, 4) if dpp_v else None,

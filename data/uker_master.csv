@@ -1,0 +1,496 @@
+kode_uker,nama_uker
+1,KC Ambon
+2,KC Bagan Siapi Api
+3,KC Banjarmasin
+4,KC Banjarnegara
+5,KC Bandung Aa
+6,KC Bangkalan
+7,KC Banyuwangi
+8,KC Baturaja
+9,KC Blitar
+10,KC Blora
+11,KC Bojonegoro
+12,KC Bogor
+13,KC Bondowoso
+14,KC Brebes
+15,KC Bukittinggi
+16,KC Demak
+17,KC Denpasar Gajah Mada
+18,KC Jakarta Tanah Abang
+19,KC Jakarta Kota
+20,KC Jambi
+21,KC Jember
+22,KC Jepara
+23,KC Jombang
+24,KC Ende
+25,KC Garut
+26,KC Gresik
+27,KC Gorontalo
+28,KC Indramayu
+29,KC Yogyakarta Cik Ditiro
+30,KC Kayu Agung
+31,KC Kandangan
+32,KC Kebumen
+33,KC Kediri
+34,KC Kendal
+35,KC Klaten
+36,KC Kotamobagu
+38,KC Kudus
+39,KC Kupang
+40,KC Lahat
+41,KC Lamongan
+44,KC Lumajang
+45,KC Madiun
+46,KC Majalengka
+47,KC Majene
+48,KC Magelang
+49,KC Magetan
+50,KC Makassar Ahmad Yani
+51,KC Malang Kawi
+52,KC Mataram
+53,KC Medan Putri Hijau
+54,KC Manado
+55,KC Mojokerto
+56,KC Nganjuk
+57,KC Ngawi
+58,KC Padang
+59,KC Palembang A. Rivai
+60,KC Palu
+61,KC Pamekasan
+62,KC Pandeglang
+63,KC Pangkal Pinang
+64,KC Pare-Pare
+65,KC Pasuruan
+66,KC Pati
+67,KC Pacitan
+68,KC Pekalongan
+69,KC Pemalang
+70,KC Ponorogo
+71,KC Pontianak
+72,KC Poso
+73,KC Probolinggo
+74,KC Purbalingga
+75,KC Purwakarta
+76,KC Purwodadi
+77,KC Purwokerto
+78,KC Purworejo
+79,KC Raba Bima
+80,KC Rangkasbitung
+81,KC Salatiga
+82,KC Samarinda 1
+83,KC Semarang Patimura
+84,KC Serang
+85,KC Sibolga
+86,KC Sidoarjo
+88,KC Singaraja
+89,KC Singkawang
+90,KC Situbondo
+91,KC Solok
+92,KC Sukabumi
+93,KC Sumbawa Besar
+94,KC Sumedang
+95,KC Sumenep
+96,KC Surabaya Kaliasin
+97,KC Solo - Sudirman
+98,KC Tanjung Karang
+99,KC Tarutung
+100,KC Tasikmalaya
+101,KC Tegal
+102,KC Temanggung
+103,KC Ternate
+104,KC Ciamis
+105,KC Cianjur
+106,KC Cilacap
+107,KC Cirebon Kartini
+108,KC Curup
+109,KC Tuban
+110,KC Tulungagung
+111,KC Watampone
+112,KC Wonosobo
+113,KC Pematang Siantar
+114,KC Semarapura
+115,KC Bengkulu
+116,KC Karawang
+117,KC Sungai Penuh
+118,KC Watansopeng
+119,KC Maumere
+120,KC Jakarta Tangerang
+121,KC Balikpapan
+122,KC Jakarta Jatinegara
+123,KC Subang
+124,KC Tabanan
+125,KC Negara
+126,KC Batulicin
+127,KC Kotabaru
+128,KC Muara Enim
+129,KC Lubuk Linggau
+130,KC Metro
+131,KC Tanjung Pandan
+132,KC Majalaya
+133,KC Kuningan
+134,KC Gombong
+135,KC Padang Sidempuan
+136,KC Kutoarjo
+137,KC Cimahi
+138,KC Pagar Alam
+139,KC Bekasi
+140,KC Sragen
+141,KC Waingapu
+142,KC Rembang
+143,KC Barabai
+144,KC Kabanjahe
+146,Kanwil Surabaya
+147,KC Amuntai
+148,KC Sampang
+149,KC Karanganyar
+150,KC Manna
+151,KC Ajibarang
+152,KC Wates
+153,KC Wonosari
+154,KC Tanjung Balai
+155,KC Kota Bumi
+156,KC Batang
+157,KC Selong
+158,KC Wonogiri
+159,KC Dumai
+160,KC Muara Bungo
+161,KC Singaparna
+162,KC Banjar
+163,KC Sampit
+164,KC Sekayu
+165,KC Jatibarang
+166,KC Labuan
+167,KC Luwuk
+168,KC Bitung
+169,KC Batu Sangkar
+170,KC Pekanbaru Sudirman
+171,KC Selat Panjang
+172,KC Surabaya Rajawali
+173,KC Boyolali
+174,KC Tanjung Pinang
+175,KC Tembilahan
+176,KC Gunung Sitoli
+177,KC Trenggalek
+179,KC Kuala Tungkal
+180,KC Kuala Kapuas
+181,KC Cibadak
+182,KC Solo Kartasura
+183,KC Tarakan
+184,KC Prabumulih
+185,KC Majenang
+186,KC Jakarta Tanjung Priok
+187,KC Palopo
+188,KC Cilegon
+189,KC Bengkalis
+190,KC Bumiayu
+191,KC Praya
+192,KC Kendari Samratulangi
+193,KC Jakarta Kebayoran Baru
+194,KC Sidikalang
+195,KC Sengkang
+196,Kanwil Semarang
+197,Kanwil Yogyakarta
+198,Kanwil Bandung
+199,Kanwil Jakarta 1
+200,Kanwil Palembang
+201,Kanwil Medan
+202,Kanwil Makassar
+203,Kanwil Denpasar
+204,Kanwil Banjarmasin
+205,Kanwil Padang
+206,JKT KCK
+207,KC Mempawah
+208,KC Ketapang
+209,KC Muara Teweh
+210,KC Rantau
+211,KC Surabaya Pahlawan
+212,KC Tenggarong
+213,KC Tanjung Redeb
+214,KC Tanah Grogot
+215,KC Cepu
+216,KC Kolaka
+217,KC Raha
+218,KC Mamuju
+219,KC Pinrang
+220,KC Enrekang
+221,KC Sidrap
+222,KC Barru
+223,KC Pangkep
+224,KC Maros
+225,KC Sungguminasa
+226,KC Tahuna
+227,KC Toli-Toli
+228,KC Rantau Prapat
+230,KC Jakarta Cut Mutiah
+231,KC Padang Panjang
+232,KC Rantepao
+233,KC Bangli
+235,KC Waikabubak
+236,KC Bantul
+237,KC Tondano
+238,KC Binjai
+239,KC Pleihari
+240,KC Bantaeng
+241,KC Amlapura
+242,KC Martapura
+243,KC Palangkaraya
+244,KC Marabahan
+245,KC Yogyakarta Katamso
+246,KC Larantuka
+247,KC Sleman
+248,KC Gianyar
+249,KC Tanjung Tabalong
+250,KC Takalar
+251,KC Muntilan
+252,KC Jeneponto
+253,KC Bulukumba
+254,Kanwil Manado
+256,KC Payakumbuh
+257,KC Benteng Selayar
+258,KC Sinjai
+259,KC Polewali
+260,KC Masohi
+261,KC Jakarta Krekot
+262,KC Parakan
+266,KC Lubuk Pakam
+267,KC Atambua
+268,KC Bangkinang
+269,KC Lubuk Sikaping
+270,KC Painan
+271,KC Sijunjung
+272,KC Dompu
+273,KC Ruteng
+274,KC Bajawa
+275,KC Bangko
+276,KC Kefamenanu
+277,KC Soe
+278,KC Kalabahi
+279,KC Limboto
+280,KC Soa-Sio
+281,KC Langgur
+282,KC Pangkalan Bun
+283,KC Tebing Tinggi
+284,KC Rengat
+285,KC Teluk Betung
+286,KC Bandung Dewi Sartika
+288,Kanins Medan
+289,Kanins Padang
+290,Kanins Palembang
+291,Kanins Jakarta
+292,Kanins Bandung
+294,Kanins Semarang
+296,Kanins Surabaya
+297,Kanins Denpasar-Kupang
+298,Kanins Makassar
+299,Kanins Manado
+300,Kanins Banjarmasin
+302,KC Cikampek
+303,KC Buntok
+304,KC Sintang
+305,KC Putussibau
+306,KC Tanjung Selor
+307,KC Jayapura
+308,KC Biak
+309,KC Serui
+310,KC Sorong
+311,KC Wamena
+312,Kanins Yogyakarta
+314,KC Balige
+315,KC Muara Bulian
+317,Kanwil Jakarta 2
+318,KC Arga Makmur
+319,KC Cikarang
+320,KC  Jakarta Kelapa Gading
+321,KC Pariaman
+322,KC Sanggau
+323,KC Kisaran
+324,KC Sungai Liat
+325,KC Semarang Pandanaran
+326,KC Bau-Bau
+327,KC Ungaran
+328,KC Surabaya Tanjung Perak
+329,KC Jakarta Veteran
+330,KC Jakarta Fatmawati
+331,KC Batam Nagoya
+332,KC Jakarta Hayam Wuruk
+333,KC Bontang
+334,KC Solo Slamet Riyadi
+335,KC Jakarta Kramat
+336,KC Medan Iskandar Muda
+337,KC Bandung Naripan
+338,KC Jakarta Roxi
+339,KC Jakarta Pasar Minggu
+340,KC Jakarta Otista
+341,KC Jakarta Warung Buncit
+342,KC Palembang Sriwijaya
+343,KC Makassar Somba Opu
+344,KC Malang Martadinata
+345,KC Jakarta Gunung Sahari
+346,KC Jakarta Mangga Dua
+347,Sendik Padang
+348,Sendik Bandung
+349,Sendik Yogyakarta
+350,Sendik Surbaya
+351,Sendik Makassar
+352,KC Merauke
+353,KC Manokwari
+354,KC Bandung A.H. Nasution
+355,KC Pamanukan
+356,KC Jakarta Kemayoran
+357,KC Bandar Jaya
+358,KC Pringsewu
+359,KC Jakarta Gatot Subroto
+360,KC Surabaya Kusuma Bangsa
+361,KC Jakarta Segitiga Senen
+362,KC Jakarta Pondok Indah
+363,KC Parigi
+365,Sendik Gatot Subroto
+367,KC Medan Sisingamangaraja
+368,KC Denpasar Renon
+376,KC Jakarta Sudirman 1
+377,KC Jakarta Kebon Jeruk
+378,KC Jakarta Rasuna Said
+379,KC Jakarta Daan Mogot
+382,KC Ciputat
+384,KC Cibubur
+385,KC Pondok Gede
+386,KC Jakarta Rawamangun
+387,KC Bogor Pajajaran
+389,KC Bandung Martadinata
+390,KC Jakarta Pancoran
+393,KC Bintaro
+394,KC Kapas Krampung
+395,KC Jakarta Tanjung Duren
+396,KC Jakarta Joglo
+397,KC Jakarta Palmerah
+398,KC Jakarta Puri Niaga
+399,KC Jakarta Kalideres
+401,KC Bandung Kopo
+403,KC Tamalanrea
+404,KC Medan Gatot Subroto
+405,KC Bandung Dago
+406,KC Cirebon Gunung Jati
+407,KC Bandung Sukarno Hatta
+408,KC Bandung Setiabudi
+409,KC Yogyakarta Mlati
+410,KC Yogyakarta Adisucipto
+411,KC Surabaya Kertajaya
+412,KC Surabaya Jemursari
+415,KC Jakarta Pluit
+416,KC Jakarta Artha Gading
+417,KC Jakarta S Parman
+418,KC Jakarta Jelambar
+419,KC Kalimalang
+420,KC Jakarta Panglima Polim
+421,KC Cibinong
+422,KC Cimanggis
+423,KC Bekasi Siliwangi
+424,KC Bekasi Harapan Indah
+425,KC Ampera
+426,KC Jakarta Kalibata
+428,KC Jakarta Cinere
+429,KC Malang Sutoyo
+430,KC Jakarta Radio Dalam
+434,KC Jakarta Cempaka Mas
+435,KC Brigjen Sudiarto
+437,KC Balaraja
+438,KC Tangerang City
+439,KC Jakarta Gading Boulevard
+440,KC Jakarta Pantai Indah Kapuk
+441,KC Jakarta Sunter
+442,KC Jakarta Kramat Jati
+443,KC Jakarta TB Simatupang
+444,KC Tambun
+445,KC Tangerang Merdeka
+446,KC Abepura
+448,Kanca Samarinda 2
+449,Kanwil Bandar Lampung
+451,Kanins BRI Bandar Lampung
+503,KC Kalianda
+509,KC Bumi Serpong Damai
+511,KC Sukoharjo
+516,KC Kepanjen
+538,KC Depok
+544,KC Soreang
+553,KC Krian
+555,KC Pare
+556,KC Kuta
+560,KC Duri
+561,KC Timika
+563,KC Sangatta
+566,KC Ampana
+569,KC Pontianak Gajah Mada
+572,KC Denpasar Gatot Subroto
+573,KC Tabanan Kediri
+577,KC Genteng
+579,KC Malang Soekarno Hatta
+583,KC Manukan
+584,KC Surabaya Hr Muhammad
+587,KC Mulyosari
+590,KC Denpasar Ubud
+603,KC Liwa
+604,KC Sarolangun
+605,KC Tulang Bawang
+606,KC Abunjani Sipin
+607,KC Rimbo Bujang
+609,KC Semarang A. Yani
+615,KC Simpang Empat
+616,KC Dharmasraya
+618,KC Tanjung Balai Karimun
+619,KC Bagan Batu
+620,KC Ujung Batu
+621,KC Batam Center
+622,KC Pangkalan Kerinci
+623,KC Banjarmasin 2
+626,KC Sendawar
+627,KC Nunukan
+630,KC Balikpapan A. Yani
+633,KC Medan Thamrin
+636,KC Perdagangan
+637,KC Panyabungan
+638,KC Stabat
+641,KC Masamba
+642,KC Panakkukang
+643,KC Saumlaki
+646,KC Kendari By Pass
+648,KC Marisa
+661,KC Slawi
+666,KC Perawang
+668,KC Teluk Kuantan
+669,KC Khatib Sulaiman
+671,KC Bursa Efek Jakarta
+684,KC Waru
+687,KC Nabire
+696,KC Pekanbaru Tuanku Tambusai
+850,Kanins Jakarta 3
+851,Kanins Malang
+853,Kanwil Jakarta 3
+854,Kanwil Malang
+855,Kanwil Pekanbaru
+856,Kanwil Jayapura
+857,Kanins Jayapura
+858,Kanins Jakarta 2
+859,Kanins Pekanbaru
+1057,KC Pogoggul
+1059,KC Pulau Aru
+1063,KC Solo Baru
+1079,KC Pekanbaru Lancang Kuning
+1080,KC Bintuni
+1081,KC Fakfak
+1082,KC Sentani
+1097,KC Sibuhuan
+1099,KC Pasir Pengaraian
+1101,KC Muko Muko
+1112,KC Labuan Bajo
+1114,KC Tobelo
+1127,KC Pamulang
+1144,KC Bandara Soekarno Hatta
+1145,KC Gading Serpong
+1156,KC Surabaya Diponegoro
+1162,KC Melawi
+1190,KC Siak
+1223,KC Mall Ambasador
+2003,KC Manado Boulevard
+2025,KC Morowali
+2062,KC Kota Pinang
+2101,KC Mabes TNI Cilangkap
