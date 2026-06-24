@@ -371,18 +371,42 @@ REKON_MONTHS = ["JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI", "JULI",
 ETB_SHEET_BY_RO = {"PALEMBANG": "PLG", "YOGYAKARTA": "YOG"}
 
 
+def _extract_uker_balance(sh) -> dict:
+    """Find the (uker, balance) helper block in an ETB sheet by scanning for the
+    adjacent column pair that yields the most (small-int uker, number) rows —
+    robust to the columns shifting between files/ROs."""
+    rows = list(sh.iter_rows(values_only=True))
+    ncol = max((len(r) for r in rows), default=0)
+    best = {}
+    for c in range(ncol - 1):
+        out = {}
+        for r in rows:
+            if c + 1 >= len(r):
+                continue
+            u, bal = r[c], r[c + 1]
+            if (isinstance(u, (int, float)) and not isinstance(u, bool)
+                    and 1 <= u <= 99999 and float(u) == int(u)
+                    and isinstance(bal, (int, float)) and not isinstance(bal, bool)):
+                out[int(u)] = float(bal)
+        if len(out) > len(best):
+            best = out
+    return best
+
+
 def read_etb(path, sheet=None, ro_name=None) -> dict:
-    """uker(int) -> ledger balance, from the ETB workbook's per-RO sheet
-    (a helper block with uker in col F and the balance in col G)."""
+    """uker(int) -> ledger balance, from the ETB workbook. Picks the per-RO sheet
+    (PLG/YOG) when present; otherwise scans every sheet for the uker→balance block."""
     import openpyxl
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    if sheet is None and ro_name:
-        sheet = ETB_SHEET_BY_RO.get(ro_name.strip().upper())
-    sh = wb[sheet] if (sheet and sheet in wb.sheetnames) else wb[wb.sheetnames[0]]
-    out = {}
-    for row in sh.iter_rows(values_only=True):
-        if len(row) >= 7 and isinstance(row[5], (int, float)) and not isinstance(row[5], bool):
-            out[int(row[5])] = to_num(row[6])
+    target = sheet or (ETB_SHEET_BY_RO.get(ro_name.strip().upper()) if ro_name else None)
+    if target and target in wb.sheetnames:
+        out = _extract_uker_balance(wb[target])
+    else:
+        out = {}
+        for sn in wb.sheetnames:
+            cand = _extract_uker_balance(wb[sn])
+            if len(cand) > len(out):
+                out = cand
     wb.close()
     return out
 

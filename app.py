@@ -85,7 +85,8 @@ with st.expander("ℹ️ Istilah — klik kalau ada yang membingungkan"):
 # ---------------------------------------------------------------- sidebar: period + SAP
 with st.sidebar:
     st.header("1 · Period & source")
-    ro = st.text_input("Regional Office", "PALEMBANG")
+    ro = st.selectbox("Regional Office", ["PALEMBANG", "YOGYAKARTA"],
+                      help="Label PSIAP & sheet ETB mengikuti RO yang dipilih.")
     masa = st.selectbox("Masa setor (bulan pelaporan)", list(BULAN_ID), index=3,
                         format_func=lambda m: f"{m:02d} — {MONTHS_EN[m]}",
                         help="Masa Pajak yang dilaporkan/disetor bulan ini (masa "
