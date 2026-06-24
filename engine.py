@@ -38,8 +38,12 @@ FULL_EXTRA_COLUMNS = ["Nama Vendor", "Document Number SAP", "Kode Uker", "Nama U
                       "Jumlah Pajak di SAP", "Selisih", "Tanggal Faktur"]
 FM_IMPORT_FULL_COLUMNS = FM_IMPORT_COLUMNS + FULL_EXTRA_COLUMNS
 
-# Maps the Coretax "konfirmasi" status to the PSIAP import code.
-KONFIRMASI_CODE = {"uncredited": 2, "credited": 1}  # TODO confirm 'credited' code w/ Salsa
+# Coretax crediting status -> PSIAP KONFIRMASI code. (The 'credited' code is a
+# guess — only 'uncredited -> 2' has ever appeared in the real WAPU data.)
+KONFIRMASI_CODE = {"belum dikreditkan": 2, "sudah dikreditkan": 1,
+                   "uncredited": 2, "credited": 1}
+# raw Coretax term -> clearer Indonesian label shown in the grid
+KONFIRMASI_LABEL = {"uncredited": "Belum dikreditkan", "credited": "Sudah dikreditkan"}
 
 
 @dataclass
@@ -254,6 +258,8 @@ def normalize_coretax(raw: pd.DataFrame) -> pd.DataFrame:
     df["npwp_penjual"] = df["npwp_penjual"].map(norm_id)
     df["dpp"] = df["dpp"].map(to_num)
     df["ppn"] = df["ppn"].map(to_num)
+    df["konfirmasi"] = df["konfirmasi"].map(
+        lambda x: KONFIRMASI_LABEL.get(str(x).strip().lower(), x))
     df = df[df["nomor_faktur"] != ""].reset_index(drop=True)
     return df
 
@@ -275,7 +281,7 @@ def coretax_seed_from_sap(sap: pd.DataFrame, cfg: "Config") -> pd.DataFrame:
         "dpp": inv["dpp_sap"].values,
         "ppn": [None] * len(inv),                    # <- from Coretax
         "status": ["approved"] * len(inv),
-        "konfirmasi": ["uncredited"] * len(inv),
+        "konfirmasi": ["Belum dikreditkan"] * len(inv),
     })
 
 
