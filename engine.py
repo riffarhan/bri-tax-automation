@@ -32,6 +32,11 @@ FM_IMPORT_COLUMNS = ["FM", "NPWP_WP", "ID_TKU_WP", "NOMOR_FAKTUR", "KONFIRMASI",
                      "MASA_PAJAK", "TAHUN_PAJAK", "MASA_PENGKREDITAN",
                      "TAHUN_PENGKREDITAN", "NPWP_PENJUAL",
                      "FIELD_TAMBAHAN_1", "FIELD_TAMBAHAN_2"]
+# the "full" review export = the upload columns + these context/recon columns
+FULL_EXTRA_COLUMNS = ["Nama Vendor", "Document Number SAP", "Kode Uker", "Nama Uker",
+                      "Status Coretax", "DPP", "Tarif", "Jumlah Pajak di Faktur",
+                      "Jumlah Pajak di SAP", "Selisih", "Tanggal Faktur"]
+FM_IMPORT_FULL_COLUMNS = FM_IMPORT_COLUMNS + FULL_EXTRA_COLUMNS
 
 # Maps the Coretax "konfirmasi" status to the PSIAP import code.
 KONFIRMASI_CODE = {"uncredited": 2, "credited": 1}  # TODO confirm 'credited' code w/ Salsa
@@ -94,6 +99,22 @@ def to_num(v) -> float:
         return float(v)
     except (TypeError, ValueError):
         return 0.0
+
+
+def to_date(v):
+    """Parse a date value or 'dd/mm/yyyy' string to a date; else None."""
+    if isinstance(v, (dt.datetime, dt.date)):
+        return v
+    if isinstance(v, str):
+        m = re.match(r"\s*(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", v)
+        if m:
+            d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            y += 2000 if y < 100 else 0
+            try:
+                return dt.date(y, mo, d)
+            except ValueError:
+                return None
+    return None
 
 
 # ----------------------------------------------------------------------------- readers
@@ -264,17 +285,26 @@ class Result:
     fm_import: pd.DataFrame
     exceptions: pd.DataFrame
     stats: dict = field(default_factory=dict)
+    fm_import_full: pd.DataFrame = None
 
 
 def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
-              by_faktur=None, by_amt=None) -> Result:
+              by_faktur=None, by_amt=None,
+              cab_by_faktur=None, cab_by_amt=None, cab_by_suffix=None,
+              uker_names=None) -> Result:
     by_faktur = by_faktur or {}
     by_amt = by_amt or {}
+    cab_by_faktur = cab_by_faktur or {}
+    cab_by_amt = cab_by_amt or {}
+    cab_by_suffix = cab_by_suffix or {}
+    uker_names = uker_names or {}
+    etb_ukers = set(uker_names)
+    reclass = build_reclass_map(sap, etb_ukers) if etb_ukers else {}
     sap_inv = sap[sap["dokumen_status"] == "INVOICE"].copy()
     sap_by_faktur = {r["nomor_faktur"]: r for _, r in sap_inv.iterrows()
                      if r["nomor_faktur"]}
 
-    rows, exc = [], []
+    rows, full, exc = [], [], []
 
     # duplicate detection (last-6-digit key) within the Coretax set
     dup_keys = (coretax.assign(_k=coretax["nomor_faktur"].map(faktur_key))
@@ -288,7 +318,7 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
         dok, how = resolve_doc(fk, c["npwp_penjual"], c["dpp"], by_faktur, by_amt)
 
         # --- build the FM-Import row (every Coretax faktur is reportable) ---
-        rows.append({
+        base = {
             "FM": "FM",
             "NPWP_WP": cfg.npwp_wp,
             "ID_TKU_WP": cfg.id_tku_wp,
@@ -301,6 +331,30 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
             "NPWP_PENJUAL": c["npwp_penjual"],
             "FIELD_TAMBAHAN_1": (norm_id(c["branch"]) or cfg.branch_tag),
             "FIELD_TAMBAHAN_2": f"{cfg.label}_{dok}" if dok else f"{cfg.label}_",
+        }
+        rows.append(base)
+
+        # --- full review row (upload columns + context/recon columns) ---
+        cab = (cab_by_faktur.get(fk) or cab_by_suffix.get(faktur_key(fk, 7))
+               or cab_by_amt.get((c["npwp_penjual"], round(to_num(c.get("dpp"))))))
+        uker = derive_uker(cab)
+        if uker is not None and uker not in etb_ukers:
+            uker = reclass.get(uker, uker)
+        dpp_v = to_num(s.get("dpp_sap")) if s is not None else to_num(c.get("dpp"))
+        ppn_fak = to_num(c.get("ppn"))
+        sap_ppn = to_num(s.get("amt_loc")) if s is not None else None
+        full.append({**base,
+            "Nama Vendor": c.get("nama_penjual"),
+            "Document Number SAP": dok,
+            "Kode Uker": uker,
+            "Nama Uker": uker_names.get(uker) if uker is not None else None,
+            "Status Coretax": str(c.get("status") or "").upper(),
+            "DPP": round(dpp_v) if dpp_v else None,
+            "Tarif": round(ppn_fak / dpp_v, 4) if dpp_v else None,
+            "Jumlah Pajak di Faktur": round(ppn_fak) if ppn_fak else None,
+            "Jumlah Pajak di SAP": round(sap_ppn) if sap_ppn else None,
+            "Selisih": round(ppn_fak + sap_ppn) if sap_ppn is not None else None,
+            "Tanggal Faktur": to_date(c.get("tanggal_faktur")),
         })
 
         # --- exception checks (flag for review, never block) ---
@@ -336,6 +390,7 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
                         "Keterangan": "Ada di SAP (INVOICE) tapi tidak ketemu di Coretax — cek apakah perlu dilaporkan / beda masa"})
 
     fm_import = pd.DataFrame(rows, columns=FM_IMPORT_COLUMNS)
+    fm_import_full = pd.DataFrame(full, columns=FM_IMPORT_FULL_COLUMNS)
     exceptions = pd.DataFrame(exc, columns=["Nomor Faktur", "NPWP Penjual", "Nama",
                                             "Masa", "Jenis", "Keterangan"])
     stats = {
@@ -345,7 +400,7 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
         "doc_filled": sum(1 for r in rows if r["FIELD_TAMBAHAN_2"] != f"{cfg.label}_"),
         "exceptions": len(exceptions),
     }
-    return Result(fm_import, exceptions, stats)
+    return Result(fm_import, exceptions, stats, fm_import_full)
 
 
 def _ex(fk, c, jenis, ket):
@@ -355,11 +410,13 @@ def _ex(fk, c, jenis, ket):
 
 
 def run(sap_path, coretax_path, cfg: Config,
-        sap_sheet="Sheet1", coretax_sheet=0) -> Result:
+        sap_sheet="Sheet1", coretax_sheet=0, etb_path=None) -> Result:
     sap = read_sap(sap_path, sap_sheet)
     by_faktur, by_amt = build_doc_index(sap_path)
+    cbf, cba, cbs = build_cabang_index(sap_path)
     coretax = read_coretax(coretax_path, coretax_sheet)
-    return reconcile(coretax, sap, cfg, by_faktur, by_amt)
+    uker_names = read_uker_names(etb_path, ro_name=cfg.ro_name) if etb_path else {}
+    return reconcile(coretax, sap, cfg, by_faktur, by_amt, cbf, cba, cbs, uker_names)
 
 
 # ----------------------------------------------------------------------------- recon (REKON)
@@ -407,6 +464,35 @@ def read_etb(path, sheet=None, ro_name=None) -> dict:
             cand = _extract_uker_balance(wb[sn])
             if len(cand) > len(out):
                 out = cand
+    wb.close()
+    return out
+
+
+def read_uker_names(path, sheet=None, ro_name=None) -> dict:
+    """uker(int) -> uker name, parsed from ETB labels like '00020 -- KC Jambi'
+    (the leading digits are the uker, the part after ' -- ' is the name)."""
+    import openpyxl
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    target = sheet or (ETB_SHEET_BY_RO.get(ro_name.strip().upper()) if ro_name else None)
+    sheets = [target] if (target and target in wb.sheetnames) else wb.sheetnames
+    out = {}
+    for sn in sheets:
+        for row in wb[sn].iter_rows(values_only=True):
+            for i, v in enumerate(row):
+                if isinstance(v, str) and " -- " in v:                # '00342 -- KC ...'
+                    prefix, name = v.split(" -- ", 1)
+                    pn = "".join(ch for ch in prefix if ch.isdigit())
+                    if pn and name.strip():
+                        out.setdefault(int(pn), name.strip())
+                elif (isinstance(v, (int, float)) and not isinstance(v, bool)
+                      and 1 <= v <= 99999 and float(v) == int(v)):     # code + plain label
+                    for j in (i - 1, i + 1):
+                        if (0 <= j < len(row) and isinstance(row[j], str)
+                                and row[j].strip() and not row[j].strip()[:6].strip().isdigit()):
+                            out.setdefault(int(v), row[j].strip())
+                            break
+        if out:
+            break
     wb.close()
     return out
 

@@ -12,6 +12,16 @@ def fm_import_bytes(result, sheet_name="FM - Import") -> bytes:
     return buf.getvalue()
 
 
+def fm_import_full_bytes(result, sheet_name="FM - Import") -> bytes:
+    """The full review version: the upload columns + context/recon columns
+    (Nama Vendor, Kode/Nama Uker, Status, DPP, Tarif, Jumlah Pajak, Selisih …)."""
+    df = result.fm_import_full if result.fm_import_full is not None else result.fm_import
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xl:
+        df.to_excel(xl, sheet_name=sheet_name, index=False)
+    return buf.getvalue()
+
+
 def rekon_bytes(rekon_df, flagged_df) -> bytes:
     """The REKON sheet + a list of fakturs whose uker needs a manual reclass."""
     buf = io.BytesIO()

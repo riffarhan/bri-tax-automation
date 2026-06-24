@@ -15,8 +15,9 @@ import pandas as pd
 
 from engine import (Config, read_sap, build_doc_index, normalize_coretax,
                     coretax_seed_from_sap, read_coretax, reconcile, BULAN_ID,
-                    read_etb, build_cabang_index, build_rekon, ETB_SHEET_BY_RO)
-from writer import fm_import_bytes, workbook_bytes, rekon_bytes
+                    read_etb, build_cabang_index, build_rekon, ETB_SHEET_BY_RO,
+                    read_uker_names)
+from writer import fm_import_bytes, fm_import_full_bytes, workbook_bytes, rekon_bytes
 
 # ---- branding (name combines Alkaina + Farhan) ------------------------------
 APP_NAME = "Alfa"
@@ -193,7 +194,15 @@ if missing_masa:
                "`MASA_PAJAK` is correct.")
 
 # ---------------------------------------------------------------- step 3: result
-res = reconcile(coretax, sap, cfg, by_faktur, by_amt)
+cbf, cba, cbs = build_cabang_index(sap_file)          # for kode uker + the Rekon
+uker_names = {}
+if etb_file:
+    try:
+        etb_file.seek(0)
+        uker_names = read_uker_names(etb_file, sheet=etb_sheet, ro_name=cfg.ro_name)
+    except Exception:
+        uker_names = {}
+res = reconcile(coretax, sap, cfg, by_faktur, by_amt, cbf, cba, cbs, uker_names)
 s = res.stats
 
 st.subheader("3 · Result")
@@ -232,7 +241,6 @@ with tab3:
         try:
             etb_file.seek(0)
             etb = read_etb(etb_file, sheet=etb_sheet, ro_name=cfg.ro_name)
-            cbf, cba, cbs = build_cabang_index(sap_file)
             rekon_df, reclass_flag = build_rekon(coretax, sap, etb, cfg, cbf, cba, cbs)
             st.caption("PPN per uker × masa, joined to the ETB balance. "
                        "**SELISIH** ≠ 0 → investigate. Branches are folded into "
@@ -251,15 +259,21 @@ with tab3:
             st.error(f"Gagal membuat Rekon: {e}")
 
 st.divider()
-fname = f"Template Impor PPN WAPU PSIAP RO {cfg.ro_name} {BULAN_ID[cfg.masa]} {cfg.tahun}.xlsx"
+st.caption("Dua file: **template upload** (12 kolom, langsung ke PSIAP) dan "
+           "**versi full** (+ kolom review: vendor, uker, DPP, tarif, pajak faktur "
+           "vs SAP, selisih). Nama Uker terisi kalau file ETB di-upload.")
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+ro_masa = f"{cfg.ro_name} {BULAN_ID[cfg.masa]} {cfg.tahun}"
 d1, d2 = st.columns(2)
-d1.download_button("⬇️ PSIAP template (ready to upload)", fm_import_bytes(res), file_name=fname,
-                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                   use_container_width=True)
-d2.download_button("⬇️ Review workbook (template + exceptions)", workbook_bytes(res),
-                   file_name=f"Review PPN WAPU {cfg.ro_name} {BULAN_ID[cfg.masa]} {cfg.tahun}.xlsx",
-                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                   use_container_width=True)
+d1.download_button("⬇️ Template PSIAP (siap upload)", fm_import_bytes(res),
+                   file_name=f"Template Impor PPN WAPU PSIAP RO {ro_masa}.xlsx",
+                   mime=XLSX, use_container_width=True)
+d2.download_button("⬇️ Versi full (dengan kolom review)", fm_import_full_bytes(res),
+                   file_name=f"FM-Import FULL PPN WAPU {ro_masa}.xlsx",
+                   mime=XLSX, use_container_width=True)
+st.download_button("⬇️ Review workbook (template + exceptions)", workbook_bytes(res),
+                   file_name=f"Review PPN WAPU {ro_masa}.xlsx",
+                   mime=XLSX, use_container_width=True)
 
 st.divider()
 st.caption(f"{APP_NAME} · made by Farhan, for Alkaina 🤍")
