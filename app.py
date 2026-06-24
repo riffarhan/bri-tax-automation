@@ -68,6 +68,31 @@ else:
         })
     coretax = normalize_coretax(edited)
 
+    # --- override audit: what did Salsa change from the SAP-seeded values? ---
+    seed_idx = seed.drop_duplicates("nomor_faktur").set_index("nomor_faktur")
+    seed_fakturs = set(seed_idx.index.astype(str))
+    overrides, added = [], []
+    for _, row in edited.iterrows():
+        fk = str(row["nomor_faktur"]).strip()
+        if not fk:
+            continue
+        if fk not in seed_fakturs:
+            added.append(fk)
+            continue
+        for col, lbl in [("npwp_penjual", "NPWP"), ("dpp", "DPP"), ("nama_penjual", "Nama")]:
+            old, new = seed_idx.loc[fk, col], row[col]
+            if pd.notna(new) and str(old).strip() not in ("", "nan") and str(old) != str(new):
+                overrides.append({"nomor_faktur": fk, "kolom": lbl,
+                                  "dari SAP": old, "diganti Coretax": new})
+    if overrides or added:
+        with st.expander(f"✏️ Perubahan dari SAP — {len(overrides)} nilai diganti, "
+                         f"{len(added)} faktur baru ditambah", expanded=bool(overrides)):
+            st.caption("Bukti audit: ini yang Salsa ubah karena Coretax beda dari SAP.")
+            if overrides:
+                st.dataframe(pd.DataFrame(overrides), use_container_width=True, hide_index=True)
+            if added:
+                st.write("Faktur hanya-Coretax yang ditambah:", ", ".join(added))
+
 if coretax is None or len(coretax) == 0:
     st.warning("Belum ada data Coretax.")
     st.stop()
