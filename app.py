@@ -154,7 +154,8 @@ else:
             "dpp": st.column_config.NumberColumn(
                 "DPP", format="%.0f", help="Dasar Pengenaan Pajak."),
             "ppn": st.column_config.NumberColumn(
-                "PPN", format="%.0f", help="PPN faktur (dipakai di tab Rekon)."),
+                "PPN", format="%.0f",
+                help="PPN faktur dari Coretax (dipakai di tab Rekon)."),
             "status": st.column_config.SelectboxColumn(
                 "Status", options=["approved", "not approved"],
                 help="Status validasi faktur di Coretax."),
@@ -204,7 +205,9 @@ if coretax is None or len(coretax) == 0:
 missing_masa = int(coretax["masa"].isna().sum()) if "masa" in coretax else 0
 if missing_masa:
     st.warning(f"⏳ {missing_masa} row(s) have no **Masa** yet — fill the faktur's "
-               "*Masa Pajak* from Coretax so `MASA_PAJAK` in the template is correct.")
+               "*Masa Pajak* from Coretax (or switch the Coretax source to "
+               "**Upload file**, which fills masa + PPN automatically) so "
+               "`MASA_PAJAK` is correct.")
 
 # ---------------------------------------------------------------- step 3: result
 res = reconcile(coretax, sap, cfg, by_faktur, by_amt)
@@ -232,8 +235,13 @@ with tab2:
     st.dataframe(res.fm_import, use_container_width=True, hide_index=True)
 with tab3:
     if not etb_file:
-        st.info("Upload the **ETB file** in the sidebar to build the Rekon "
-                "(PPN per uker × masa, vs the ETB ledger balance).")
+        st.info("Upload the **ETB file** in the sidebar to build the Rekon (PPN "
+                "per uker × masa vs the ETB *saldo*). Note: the ETB file gives the "
+                "balance, **not** the per-faktur PPN.")
+    elif "masa" not in coretax or coretax["masa"].isna().all():
+        st.warning("The Rekon groups PPN by uker × **masa**, but no **Masa** is "
+                   "filled yet. Fill **Masa** from Coretax in the grid, or switch "
+                   "the Coretax source above to **Upload file** (which has masa + PPN).")
     elif "ppn" not in coretax or coretax["ppn"].fillna(0).eq(0).all():
         st.warning("The **PPN** column is empty — the Rekon sums PPN per uker. "
                    "Fill PPN (from Coretax) in the grid, or use Upload-file mode.")

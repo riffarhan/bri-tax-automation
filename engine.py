@@ -252,7 +252,7 @@ def coretax_seed_from_sap(sap: pd.DataFrame, cfg: "Config") -> pd.DataFrame:
         "masa": [None] * len(inv),                   # <- from Coretax (key field)
         "tahun": [cfg.tahun] * len(inv),
         "dpp": inv["dpp_sap"].values,
-        "ppn": [None] * len(inv),
+        "ppn": [None] * len(inv),                    # <- from Coretax
         "status": ["approved"] * len(inv),
         "konfirmasi": ["uncredited"] * len(inv),
     })
