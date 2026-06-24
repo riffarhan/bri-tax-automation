@@ -145,20 +145,54 @@ def _read_sap_sheet(path, sheet) -> pd.DataFrame:
     return df
 
 
+_SAP_MARKERS = {"Nomor FP", "Dokumen Invoice"}          # columns the doc-index needs
+
+
+def _is_doc_source_sheet(path, sheet) -> bool:
+    """True for any sheet carrying faktur→doc data — detected by having both
+    'Nomor FP' and 'Dokumen Invoice' columns. Catches Sheet1, partial-download
+    tabs (19-20, 15-19, 21-21, …) and the adjacent-month worked sheets
+    (BULAN SBLMNYA/BERIKUTNYA), which hold the doc numbers for fakturs booked in
+    a neighbouring month. REKON / DUPLIKAT lack these columns and drop out.
+    Name-agnostic, so it survives month-to-month tab renames."""
+    try:
+        probe = pd.read_excel(path, sheet_name=sheet, header=None, nrows=3, dtype=object)
+    except Exception:
+        return False
+    for i in range(min(3, len(probe))):
+        vals = {str(x).strip() for x in probe.iloc[i].tolist()}
+        if _SAP_MARKERS <= vals:
+            return True
+    return False
+
+
+def sap_pull_sheets(path) -> list:
+    import openpyxl
+    names = openpyxl.load_workbook(path, read_only=True).sheetnames
+    # 'DATA OLAH' is the current-month OUTPUT — exclude it so we don't reuse
+    # Salsa's own answers (it's empty on a fresh month anyway). BULAN
+    # SBLMNYA/BERIKUTNYA are kept: they hold real adjacent-month doc numbers.
+    return [s for s in names
+            if "OLAH" not in s.upper() and _is_doc_source_sheet(path, s)]
+
+
 def read_sap(path, sheet="Sheet1") -> pd.DataFrame:
     """Current-masa SAP rows, used for reconciliation (DPP diff, booked-not-reported)."""
+    import openpyxl
+    available = openpyxl.load_workbook(path, read_only=True).sheetnames
+    if sheet not in available:                       # fall back to the first SAP pull tab
+        pulls = sap_pull_sheets(path)
+        sheet = pulls[0] if pulls else available[0]
     return _read_sap_sheet(path, sheet)
 
 
-SAP_DOC_SHEETS = ["Sheet1", "BULAN SBLMNYA", "BULAN BERIKUTNYA", "19 - 20"]
-
-
 def build_doc_index(path):
-    """Faktur/doc lookup spanning the current + adjacent-month SAP sheets, since a
-    faktur reported this masa may have been booked in an adjacent month."""
-    import openpyxl
-    available = openpyxl.load_workbook(path, read_only=True).sheetnames
-    frames = [_read_sap_sheet(path, s) for s in SAP_DOC_SHEETS if s in available]
+    """Faktur/doc lookup spanning every SAP pull tab (current + adjacent-month +
+    partial downloads), since a faktur reported this masa may have been booked
+    in an adjacent month."""
+    frames = [_read_sap_sheet(path, s) for s in sap_pull_sheets(path)]
+    if not frames:
+        return {}, {}
     allrows = pd.concat(frames, ignore_index=True)
     allrows = allrows[allrows.get("dokumen_invoice", "").astype(str) != ""]
     by_faktur = {r["nomor_faktur"]: r["dokumen_invoice"]
