@@ -15,7 +15,7 @@ import pandas as pd
 
 from engine import (Config, read_sap, build_doc_index, normalize_coretax,
                     coretax_seed_from_sap, read_coretax, reconcile, BULAN_ID,
-                    read_etb, build_cabang_index, build_rekon)
+                    read_etb, build_cabang_index, build_rekon, ETB_SHEET_BY_RO)
 from writer import fm_import_bytes, workbook_bytes, rekon_bytes
 
 # ---- branding (name combines Alkaina + Farhan) ------------------------------
@@ -97,6 +97,17 @@ with st.sidebar:
     st.caption("Current and adjacent-month sheets are detected automatically "
                "for document-number matching.")
     etb_file = st.file_uploader("ETB file (.xlsx) — for the Rekon tab", type=["xlsx"], key="etb")
+    etb_sheet = None
+    if etb_file is not None:
+        try:
+            _etb_sheets = pd.ExcelFile(etb_file).sheet_names
+            _default = ETB_SHEET_BY_RO.get(ro.strip().upper())
+            etb_sheet = st.selectbox(
+                "Sheet ETB", _etb_sheets,
+                index=_etb_sheets.index(_default) if _default in _etb_sheets else 0,
+                help="Pilih sheet yang berisi saldo ETB per uker (mis. PLG / YOG).")
+        except Exception as e:  # noqa
+            st.caption(f"Tidak bisa baca sheet ETB: {e}")
 
 cfg = Config(ro_name=ro.strip().upper(), masa=int(masa), tahun=int(tahun))
 
@@ -228,7 +239,8 @@ with tab3:
                    "Fill PPN (from Coretax) in the grid, or use Upload-file mode.")
     else:
         try:
-            etb = read_etb(etb_file, ro_name=cfg.ro_name)
+            etb_file.seek(0)
+            etb = read_etb(etb_file, sheet=etb_sheet, ro_name=cfg.ro_name)
             cbf, cba, cbs = build_cabang_index(sap_file)
             rekon_df, reclass_flag = build_rekon(coretax, sap, etb, cfg, cbf, cba, cbs)
             st.caption("PPN per uker × masa, joined to the ETB balance. "
