@@ -65,23 +65,6 @@ else:
     st.title(APP_NAME)
 st.caption(APP_TAGLINE)
 
-with st.expander("ℹ️ Istilah — klik kalau ada yang membingungkan"):
-    st.markdown(
-        "- **Masa setor** (sidebar) — Masa Pajak yang dilaporkan/disetor bulan ini "
-        "(masa pelaporan).\n"
-        "- **Masa** (grid) — **Masa Pajak Faktur**, masa pajak dari faktur di Coretax. "
-        "Sering bulan sebelumnya, jadi **beda** dari masa setor.\n"
-        "- **SAP** — sumber data transaksi (extract bulanan PPN WAPU).\n"
-        "- **Coretax** — tempat memvalidasi Faktur Pajak (status *approved*) & ambil "
-        "data faktur resmi.\n"
-        "- **Template Impor PSIAP** — hasil akhir yang di-upload ke PSIAP (sesuai "
-        "Petunjuk Isian).\n"
-        "- **Rekon** — PPN per uker × masa dibanding saldo **ETB**; "
-        "**SELISIH ≠ 0 → perlu dicek**.\n"
-        "- **Reclass** — nominal cabang dipindah ke induknya (mis. uker 5747 → 0059).\n"
-        "- **ETB** — saldo utang PPN WAPU per uker."
-    )
-
 # ---------------------------------------------------------------- sidebar: period + SAP
 with st.sidebar:
     st.header("1 · Period & source")
