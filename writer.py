@@ -18,8 +18,8 @@ def workbook_bytes(result) -> bytes:
     with pd.ExcelWriter(buf, engine="openpyxl") as xl:
         result.fm_import.to_excel(xl, sheet_name="FM - Import", index=False)
         (result.exceptions if len(result.exceptions)
-         else pd.DataFrame(columns=["Faktur", "Type", "Detail"])
-         ).to_excel(xl, sheet_name="Exceptions", index=False)
-        pd.DataFrame([result.stats]).T.rename(columns={0: "value"}).to_excel(
-            xl, sheet_name="Summary")
+         else pd.DataFrame(columns=["Nomor Faktur", "Jenis", "Keterangan"])
+         ).to_excel(xl, sheet_name="Pengecualian", index=False)
+        pd.DataFrame([result.stats]).T.rename(columns={0: "nilai"}).to_excel(
+            xl, sheet_name="Ringkasan")
     return buf.getvalue()

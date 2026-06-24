@@ -66,15 +66,15 @@ else:
     edited = st.data_editor(
         seed, num_rows="dynamic", use_container_width=True, height=340,
         column_config={
-            "nomor_faktur": st.column_config.TextColumn("Faktur Number", width="medium"),
-            "npwp_penjual": st.column_config.TextColumn("Seller NPWP"),
-            "nama_penjual": st.column_config.TextColumn("Vendor Name"),
-            "masa": st.column_config.NumberColumn("Masa  ← from Coretax", min_value=1, max_value=12, step=1),
-            "tahun": st.column_config.NumberColumn("Year", step=1, format="%d"),
+            "nomor_faktur": st.column_config.TextColumn("Nomor Faktur", width="medium"),
+            "npwp_penjual": st.column_config.TextColumn("NPWP Penjual"),
+            "nama_penjual": st.column_config.TextColumn("Nama Vendor"),
+            "masa": st.column_config.NumberColumn("Masa (dari Coretax)", min_value=1, max_value=12, step=1),
+            "tahun": st.column_config.NumberColumn("Tahun", step=1, format="%d"),
             "dpp": st.column_config.NumberColumn("DPP", format="%.0f"),
-            "ppn": st.column_config.NumberColumn("VAT (PPN)", format="%.0f"),
+            "ppn": st.column_config.NumberColumn("PPN", format="%.0f"),
             "status": st.column_config.SelectboxColumn("Status", options=["approved", "not approved"]),
-            "konfirmasi": st.column_config.SelectboxColumn("Credit status", options=["uncredited", "credited"]),
+            "konfirmasi": st.column_config.SelectboxColumn("Konfirmasi", options=["uncredited", "credited"]),
         })
     coretax = normalize_coretax(edited)
 
@@ -97,11 +97,11 @@ else:
             if str(row["nomor_faktur"]).strip():
                 added.append(str(row["nomor_faktur"]).strip())
             continue
-        for col, lbl in [("npwp_penjual", "Seller NPWP"), ("dpp", "DPP"), ("nama_penjual", "Vendor")]:
+        for col, lbl in [("npwp_penjual", "NPWP Penjual"), ("dpp", "DPP"), ("nama_penjual", "Nama Vendor")]:
             old, new = base.loc[idx, col], row[col]
             if _changed(col, old, new):
-                overrides.append({"Faktur": str(row["nomor_faktur"]), "Field": lbl,
-                                  "From SAP": old, "Changed to (Coretax)": new})
+                overrides.append({"Nomor Faktur": str(row["nomor_faktur"]), "Kolom": lbl,
+                                  "Dari SAP": old, "Diisi dari Coretax": new})
     if overrides or added:
         with st.expander(f"Changes from SAP — {len(overrides)} value(s) overridden, "
                          f"{len(added)} faktur(s) added", expanded=bool(overrides)):
@@ -135,10 +135,10 @@ tab1, tab2 = st.tabs([f"⚠️ Exceptions ({s['exceptions']})", "✅ FM-Import t
 with tab1:
     if len(res.exceptions):
         st.caption("Only these rows need a human — everything else is automated.")
-        for etype, grp in res.exceptions.groupby("Type"):
-            with st.expander(f"{etype} — {len(grp)} row(s)",
-                             expanded=etype.startswith("Doc number")):
-                st.dataframe(grp.drop(columns=["Type"]), use_container_width=True, hide_index=True)
+        for jenis, grp in res.exceptions.groupby("Jenis"):
+            with st.expander(f"{jenis} — {len(grp)} row(s)",
+                             expanded=jenis.startswith("Doc number") or jenis.startswith("Nomor faktur")):
+                st.dataframe(grp.drop(columns=["Jenis"]), use_container_width=True, hide_index=True)
     else:
         st.success("No exceptions — everything reconciles. ✨")
 with tab2:

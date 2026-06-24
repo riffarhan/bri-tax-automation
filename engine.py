@@ -304,38 +304,38 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
         # --- exception checks (flag for review, never block) ---
         blank_faktur = (not fk) or set(fk) <= {"0"}
         if blank_faktur:
-            exc.append(_ex(fk, c, "Missing faktur number",
-                           "Faktur number is blank / all zeros in the source — enter the correct e-faktur number from Coretax."))
+            exc.append(_ex(fk, c, "Nomor faktur kosong",
+                           "Nomor faktur kosong / semua nol di sumber — isi nomor e-faktur yang benar dari Coretax."))
         if how == "tidak ketemu":
-            exc.append(_ex(fk, c, "Doc number not found",
-                           "Not found in SAP by faktur number or by NPWP+amount — the document number must be filled in / verified manually."))
+            exc.append(_ex(fk, c, "Doc number tidak ketemu",
+                           "Tidak ketemu di SAP via faktur maupun NPWP+nominal — doc number perlu diisi / dicek manual."))
         elif how == "npwp+nominal":
-            exc.append(_ex(fk, c, "Matched by NPWP + amount",
-                           f"Faktur did not match SAP exactly (likely a typo); document {dok} was matched via NPWP + amount — please verify."))
+            exc.append(_ex(fk, c, "Doc via NPWP+nominal",
+                           f"Faktur tidak persis cocok di SAP (kemungkinan typo); doc {dok} dicocokkan via NPWP+nominal — mohon verifikasi."))
         if s is not None:
             diff = to_num(c["dpp"]) - to_num(s["dpp_sap"])
             if abs(diff) >= 1:
-                exc.append(_ex(fk, c, "DPP mismatch",
-                               f"Coretax DPP {to_num(c['dpp']):,.0f} vs SAP {to_num(s['dpp_sap']):,.0f} (difference {diff:,.0f})"))
+                exc.append(_ex(fk, c, "DPP beda",
+                               f"DPP Coretax {to_num(c['dpp']):,.0f} vs SAP {to_num(s['dpp_sap']):,.0f} (selisih {diff:,.0f})"))
         if str(c["status"]).strip().lower() != "approved":
-            exc.append(_ex(fk, c, "Not approved",
-                           f"Coretax status = {c['status']} — faktur cannot be credited yet"))
+            exc.append(_ex(fk, c, "Belum approved",
+                           f"Status Coretax = {c['status']} — faktur belum bisa dikreditkan"))
         if c["_dupcount"] > 1 and not blank_faktur:
-            exc.append(_ex(fk, c, "Possible duplicate",
-                           f"Faktur number is similar (last 6 digits = {c['_dupgroup']}) to another faktur"))
+            exc.append(_ex(fk, c, "Dugaan duplikat",
+                           f"Nomor faktur mirip (6 digit akhir = {c['_dupgroup']}) dengan faktur lain"))
 
     # SAP fakturs that never appear in Coretax = booked but not reported
     coretax_keys = set(coretax["nomor_faktur"])
     for fk, s in sap_by_faktur.items():
         if fk not in coretax_keys:
-            exc.append({"Faktur": fk, "Seller NPWP": s["npwp_sap"],
-                        "Vendor": s.get("nama_sap"), "Masa": s.get("masa_sap"),
-                        "Type": "Not in Coretax",
-                        "Detail": "Present in SAP (INVOICE) but not found in Coretax — check whether it should be reported / different masa"})
+            exc.append({"Nomor Faktur": fk, "NPWP Penjual": s["npwp_sap"],
+                        "Nama": s.get("nama_sap"), "Masa": s.get("masa_sap"),
+                        "Jenis": "Tidak ada di Coretax",
+                        "Keterangan": "Ada di SAP (INVOICE) tapi tidak ketemu di Coretax — cek apakah perlu dilaporkan / beda masa"})
 
     fm_import = pd.DataFrame(rows, columns=FM_IMPORT_COLUMNS)
-    exceptions = pd.DataFrame(exc, columns=["Faktur", "Seller NPWP", "Vendor",
-                                            "Masa", "Type", "Detail"])
+    exceptions = pd.DataFrame(exc, columns=["Nomor Faktur", "NPWP Penjual", "Nama",
+                                            "Masa", "Jenis", "Keterangan"])
     stats = {
         "coretax_fakturs": len(coretax),
         "sap_invoice_rows": len(sap_inv),
@@ -346,10 +346,10 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
     return Result(fm_import, exceptions, stats)
 
 
-def _ex(fk, c, etype, detail):
-    return {"Faktur": fk, "Seller NPWP": c["npwp_penjual"],
-            "Vendor": c.get("nama_penjual"), "Masa": c.get("masa"),
-            "Type": etype, "Detail": detail}
+def _ex(fk, c, jenis, ket):
+    return {"Nomor Faktur": fk, "NPWP Penjual": c["npwp_penjual"],
+            "Nama": c.get("nama_penjual"), "Masa": c.get("masa"),
+            "Jenis": jenis, "Keterangan": ket}
 
 
 def run(sap_path, coretax_path, cfg: Config,
