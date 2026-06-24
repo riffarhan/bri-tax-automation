@@ -68,4 +68,4 @@ if mismatch_by_col:
             if n >= 5: break
 
 print(f"\nEXCEPTIONS flagged: {len(res.exceptions)}")
-print(res.exceptions["JENIS"].value_counts().to_string() if len(res.exceptions) else "  (none)")
+print(res.exceptions["Type"].value_counts().to_string() if len(res.exceptions) else "  (none)")
