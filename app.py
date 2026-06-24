@@ -65,12 +65,32 @@ else:
     st.title(APP_NAME)
 st.caption(APP_TAGLINE)
 
+with st.expander("ℹ️ Istilah — klik kalau ada yang membingungkan"):
+    st.markdown(
+        "- **Masa setor** (sidebar) — Masa Pajak yang dilaporkan/disetor bulan ini "
+        "(masa pelaporan).\n"
+        "- **Masa** (grid) — **Masa Pajak Faktur**, masa pajak dari faktur di Coretax. "
+        "Sering bulan sebelumnya, jadi **beda** dari masa setor.\n"
+        "- **SAP** — sumber data transaksi (extract bulanan PPN WAPU).\n"
+        "- **Coretax** — tempat memvalidasi Faktur Pajak (status *approved*) & ambil "
+        "data faktur resmi.\n"
+        "- **Template Impor PSIAP** — hasil akhir yang di-upload ke PSIAP (sesuai "
+        "Petunjuk Isian).\n"
+        "- **Rekon** — PPN per uker × masa dibanding saldo **ETB**; "
+        "**SELISIH ≠ 0 → perlu dicek**.\n"
+        "- **Reclass** — nominal cabang dipindah ke induknya (mis. uker 5747 → 0059).\n"
+        "- **ETB** — saldo utang PPN WAPU per uker."
+    )
+
 # ---------------------------------------------------------------- sidebar: period + SAP
 with st.sidebar:
     st.header("1 · Period & source")
     ro = st.text_input("Regional Office", "PALEMBANG")
-    masa = st.selectbox("Tax period (month)", list(BULAN_ID), index=3,
-                        format_func=lambda m: f"{m:02d} — {MONTHS_EN[m]}")
+    masa = st.selectbox("Masa setor (bulan pelaporan)", list(BULAN_ID), index=3,
+                        format_func=lambda m: f"{m:02d} — {MONTHS_EN[m]}",
+                        help="Masa Pajak yang dilaporkan/disetor bulan ini (masa "
+                             "pelaporan). Beda dari kolom **Masa** di grid, yang "
+                             "adalah masa pajak faktur dari Coretax.")
     tahun = st.number_input("Year", 2024, 2030, 2026)
     sap_file = st.file_uploader("SAP PPN WAPU extract (.xlsx)", type=["xlsx"])
     st.caption("Current and adjacent-month sheets are detected automatically "
@@ -99,23 +119,36 @@ if mode == "Upload file":
     if ct_file:
         coretax = read_coretax(ct_file, ct_sheet)
 else:
-    st.caption("The grid is pre-filled from SAP. Fill in the **Masa** column "
-               "from Coretax and correct the **Status** for any faktur that "
-               "isn't approved. For fakturs that exist only in Coretax, add a "
-               "row at the bottom.")
+    st.caption("The grid is pre-filled from SAP. Fill in **Masa** (the faktur's "
+               "*Masa Pajak*, from Coretax) and fix **Status** for any faktur "
+               "that isn't *approved*. For fakturs that exist only in Coretax, "
+               "add a row at the bottom.")
     seed = coretax_seed_from_sap(sap, cfg)
     edited = st.data_editor(
         seed, num_rows="dynamic", use_container_width=True, height=340,
         column_config={
-            "nomor_faktur": st.column_config.TextColumn("Nomor Faktur", width="medium"),
-            "npwp_penjual": st.column_config.TextColumn("NPWP Penjual"),
-            "nama_penjual": st.column_config.TextColumn("Nama Vendor"),
-            "masa": st.column_config.NumberColumn("Masa (dari Coretax)", min_value=1, max_value=12, step=1),
-            "tahun": st.column_config.NumberColumn("Tahun", step=1, format="%d"),
-            "dpp": st.column_config.NumberColumn("DPP", format="%.0f"),
-            "ppn": st.column_config.NumberColumn("PPN", format="%.0f"),
-            "status": st.column_config.SelectboxColumn("Status", options=["approved", "not approved"]),
-            "konfirmasi": st.column_config.SelectboxColumn("Konfirmasi", options=["uncredited", "credited"]),
+            "nomor_faktur": st.column_config.TextColumn(
+                "Nomor Faktur", width="medium", help="Nomor Faktur Pajak (e-faktur)."),
+            "npwp_penjual": st.column_config.TextColumn(
+                "NPWP Penjual", help="NPWP penjual / vendor."),
+            "nama_penjual": st.column_config.TextColumn(
+                "Nama Vendor", help="Nama penjual / vendor."),
+            "masa": st.column_config.NumberColumn(
+                "Masa", min_value=1, max_value=12, step=1,
+                help="Masa Pajak Faktur — masa pajak dari faktur di Coretax. "
+                     "Sering bulan sebelumnya, jadi beda dari masa setor di sidebar."),
+            "tahun": st.column_config.NumberColumn(
+                "Tahun", step=1, format="%d", help="Tahun Pajak faktur."),
+            "dpp": st.column_config.NumberColumn(
+                "DPP", format="%.0f", help="Dasar Pengenaan Pajak."),
+            "ppn": st.column_config.NumberColumn(
+                "PPN", format="%.0f", help="PPN faktur (dipakai di tab Rekon)."),
+            "status": st.column_config.SelectboxColumn(
+                "Status", options=["approved", "not approved"],
+                help="Status validasi faktur di Coretax."),
+            "konfirmasi": st.column_config.SelectboxColumn(
+                "Konfirmasi", options=["uncredited", "credited"],
+                help="Status pengkreditan faktur (konfirmasi)."),
         })
     coretax = normalize_coretax(edited)
 
@@ -158,8 +191,8 @@ if coretax is None or len(coretax) == 0:
 
 missing_masa = int(coretax["masa"].isna().sum()) if "masa" in coretax else 0
 if missing_masa:
-    st.warning(f"⏳ {missing_masa} row(s) have no **Masa** yet — fill it from "
-               "Coretax so the template's tax period is correct.")
+    st.warning(f"⏳ {missing_masa} row(s) have no **Masa** yet — fill the faktur's "
+               "*Masa Pajak* from Coretax so `MASA_PAJAK` in the template is correct.")
 
 # ---------------------------------------------------------------- step 3: result
 res = reconcile(coretax, sap, cfg, by_faktur, by_amt)
