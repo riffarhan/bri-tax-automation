@@ -335,14 +335,16 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
         rows.append(base)
 
         # --- full review row (upload columns + context/recon columns) ---
-        cab = (cab_by_faktur.get(fk) or cab_by_suffix.get(faktur_key(fk, 7))
-               or cab_by_amt.get((c["npwp_penjual"], round(to_num(c.get("dpp"))))))
-        uker = derive_uker(cab)
+        info = resolve_sap_info(fk, c["npwp_penjual"], c.get("dpp"),
+                                cab_by_faktur, cab_by_amt, cab_by_suffix)
+        uker = derive_uker(info.get("cabang"))
         if uker is not None and uker not in etb_ukers:
             uker = reclass.get(uker, uker)
-        dpp_v = to_num(s.get("dpp_sap")) if s is not None else to_num(c.get("dpp"))
         ppn_fak = to_num(c.get("ppn"))
-        sap_ppn = to_num(s.get("amt_loc")) if s is not None else None
+        if info:
+            dpp_v, sap_ppn = to_num(info.get("dpp")), to_num(info.get("amt"))
+        else:
+            dpp_v, sap_ppn = to_num(c.get("dpp")), None
         full.append({**base,
             "Nama Vendor": c.get("nama_penjual"),
             "Document Number SAP": dok,
@@ -534,19 +536,31 @@ def build_cabang_index(path):
         return {}, {}
     allrows = pd.concat(frames, ignore_index=True)
     allrows = allrows[allrows.get("dokumen_status", "") == "INVOICE"]
-    by_faktur = {r["nomor_faktur"]: r.get("kode_cabang")
-                 for _, r in allrows.iterrows() if r.get("nomor_faktur")}
-    by_amt, by_suffix = defaultdict(set), defaultdict(set)
+    by_faktur = {}
+    by_amt, by_suffix = defaultdict(list), defaultdict(list)
     for _, r in allrows.iterrows():
-        k = (norm_id(r.get("npwp_sap")), round(to_num(r.get("dpp_sap"))))
-        if k[0] and k[1]:
-            by_amt[k].add(r.get("kode_cabang"))
+        info = {"cabang": r.get("kode_cabang"),
+                "dpp": to_num(r.get("dpp_sap")), "amt": to_num(r.get("amt_loc"))}
         fk = r.get("nomor_faktur")
         if fk:
-            by_suffix[faktur_key(fk, 7)].add(r.get("kode_cabang"))
-    by_amt = {k: next(iter(v)) for k, v in by_amt.items() if len(v) == 1}
-    by_suffix = {k: next(iter(v)) for k, v in by_suffix.items() if len(v) == 1}
+            by_faktur.setdefault(fk, info)
+            by_suffix[faktur_key(fk, 7)].append(info)
+        k = (norm_id(r.get("npwp_sap")), round(to_num(r.get("dpp_sap"))))
+        if k[0] and k[1]:
+            by_amt[k].append(info)
+    # keep a key only if it maps to ONE uker (cabang); store the first row's info
+    by_amt = {k: v[0] for k, v in by_amt.items() if len({i["cabang"] for i in v}) == 1}
+    by_suffix = {k: v[0] for k, v in by_suffix.items() if len({i["cabang"] for i in v}) == 1}
     return by_faktur, by_amt, by_suffix
+
+
+def resolve_sap_info(faktur, npwp, dpp, by_faktur, by_amt, by_suffix) -> dict:
+    """Resolve a Coretax faktur to its SAP info {cabang, dpp, amt}:
+    exact faktur -> last-7 suffix -> NPWP+amount. {} if none."""
+    return (by_faktur.get(faktur)
+            or by_suffix.get(faktur_key(faktur, 7))
+            or by_amt.get((norm_id(npwp), round(to_num(dpp))))
+            or {})
 
 
 def build_rekon(coretax: pd.DataFrame, sap: pd.DataFrame, etb: dict, cfg: Config,
@@ -561,7 +575,9 @@ def build_rekon(coretax: pd.DataFrame, sap: pd.DataFrame, etb: dict, cfg: Config
 
     if cab_by_faktur is None:
         inv = sap[sap["dokumen_status"] == "INVOICE"]
-        cab_by_faktur = {r["nomor_faktur"]: r.get("kode_cabang")
+        cab_by_faktur = {r["nomor_faktur"]: {"cabang": r.get("kode_cabang"),
+                                             "dpp": to_num(r.get("dpp_sap")),
+                                             "amt": to_num(r.get("amt_loc"))}
                          for _, r in inv.iterrows() if r["nomor_faktur"]}
     cab_by_amt = cab_by_amt or {}
     cab_by_suffix = cab_by_suffix or {}
@@ -572,9 +588,9 @@ def build_rekon(coretax: pd.DataFrame, sap: pd.DataFrame, etb: dict, cfg: Config
         fk = c["nomor_faktur"]
         ppn = to_num(c.get("ppn"))
         masa = c.get("masa")
-        cab = (cab_by_faktur.get(fk)
-               or cab_by_suffix.get(faktur_key(fk, 7))
-               or cab_by_amt.get((c["npwp_penjual"], round(to_num(c.get("dpp"))))))
+        info = resolve_sap_info(fk, c["npwp_penjual"], c.get("dpp"),
+                                cab_by_faktur, cab_by_amt, cab_by_suffix)
+        cab = info.get("cabang")
         uker = derive_uker(cab)
         if uker is not None and uker not in etb_ukers:
             uker = reclass.get(uker, uker)               # fold branch into parent
