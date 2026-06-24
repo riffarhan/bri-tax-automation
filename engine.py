@@ -101,7 +101,8 @@ SAP_RENAME = {
     "Kode Cabang Transaksi": "kode_cabang", "Dokumen Invoice": "dokumen_invoice",
     "Dokumen Pembayaran": "dokumen_pembayaran", "Dokumen Status": "dokumen_status",
     "Masa Pajak": "masa_sap", "Tahun Pajak": "tahun_sap",
-    "DPP Amount Loc Currency VAT": "dpp_sap", "NIK/NPWP/TIN": "npwp_sap",
+    "DPP Amount Loc Currency VAT": "dpp_sap", "Amt.in loc.cur.": "amt_loc",
+    "NIK/NPWP/TIN": "npwp_sap",
     "Nama": "nama_sap", "Tanggal Faktur": "tgl_faktur_sap", "Nomor FP": "nomor_faktur",
 }
 
@@ -141,7 +142,8 @@ def _read_sap_sheet(path, sheet) -> pd.DataFrame:
         if c in df: df[c] = df[c].map(norm_faktur)
     for c in ("npwp_sap", "dokumen_invoice"):
         if c in df: df[c] = df[c].map(norm_id)
-    if "dpp_sap" in df: df["dpp_sap"] = df["dpp_sap"].map(to_num)
+    for c in ("dpp_sap", "amt_loc"):
+        if c in df: df[c] = df[c].map(to_num)
     return df
 
 
@@ -358,3 +360,134 @@ def run(sap_path, coretax_path, cfg: Config,
     by_faktur, by_amt = build_doc_index(sap_path)
     coretax = read_coretax(coretax_path, coretax_sheet)
     return reconcile(coretax, sap, cfg, by_faktur, by_amt)
+
+
+# ----------------------------------------------------------------------------- recon (REKON)
+# Validated against the real April Palembang REKON: month value = sum of the
+# Coretax faktur PPN per uker per masa; ETB = per-uker ledger balance; and
+# SELISIH = ETB + TOTAL.
+REKON_MONTHS = ["JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI", "JULI",
+                "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"]
+ETB_SHEET_BY_RO = {"PALEMBANG": "PLG", "YOGYAKARTA": "YOG"}
+
+
+def read_etb(path, sheet=None, ro_name=None) -> dict:
+    """uker(int) -> ledger balance, from the ETB workbook's per-RO sheet
+    (a helper block with uker in col F and the balance in col G)."""
+    import openpyxl
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    if sheet is None and ro_name:
+        sheet = ETB_SHEET_BY_RO.get(ro_name.strip().upper())
+    sh = wb[sheet] if (sheet and sheet in wb.sheetnames) else wb[wb.sheetnames[0]]
+    out = {}
+    for row in sh.iter_rows(values_only=True):
+        if len(row) >= 7 and isinstance(row[5], (int, float)) and not isinstance(row[5], bool):
+            out[int(row[5])] = to_num(row[6])
+    wb.close()
+    return out
+
+
+def derive_uker(kode_cabang):
+    """Parent uker from the SAP branch code (strip leading zeros). Returns None
+    for branch/non-numeric codes that need a reclass to their parent."""
+    s = norm_id(kode_cabang)
+    return int(s) if s.isdigit() else None
+
+
+def build_reclass_map(sap: pd.DataFrame, etb_ukers: set) -> dict:
+    """branch uker -> parent uker, from the SAP RECLASS pairs. A branch (a uker
+    not among the known ETB/parent ukers) entered with +X is matched by equal
+    |amount| to a parent entered with -X. This is the manual 'match by nominal'."""
+    from collections import defaultdict
+    rec = sap[sap["dokumen_status"] == "RECLASS"]
+    by_amt = defaultdict(list)
+    for _, r in rec.iterrows():
+        u = derive_uker(r.get("kode_cabang"))
+        amt = to_num(r.get("amt_loc"))
+        if u is not None and amt:
+            by_amt[round(abs(amt))].append(u)
+    mapping = {}
+    for _, ukers in by_amt.items():
+        branches = [u for u in ukers if u not in etb_ukers]
+        parents = [u for u in ukers if u in etb_ukers]
+        if len(branches) == 1 and len(parents) == 1:
+            mapping[branches[0]] = parents[0]
+    return mapping
+
+
+def build_cabang_index(path):
+    """faktur->kode_cabang and (npwp,amt)->kode_cabang across ALL SAP pull sheets
+    (so a faktur booked in an adjacent month still resolves its uker)."""
+    from collections import defaultdict
+    frames = [_read_sap_sheet(path, s) for s in sap_pull_sheets(path)]
+    if not frames:
+        return {}, {}
+    allrows = pd.concat(frames, ignore_index=True)
+    allrows = allrows[allrows.get("dokumen_status", "") == "INVOICE"]
+    by_faktur = {r["nomor_faktur"]: r.get("kode_cabang")
+                 for _, r in allrows.iterrows() if r.get("nomor_faktur")}
+    by_amt, by_suffix = defaultdict(set), defaultdict(set)
+    for _, r in allrows.iterrows():
+        k = (norm_id(r.get("npwp_sap")), round(to_num(r.get("dpp_sap"))))
+        if k[0] and k[1]:
+            by_amt[k].add(r.get("kode_cabang"))
+        fk = r.get("nomor_faktur")
+        if fk:
+            by_suffix[faktur_key(fk, 7)].add(r.get("kode_cabang"))
+    by_amt = {k: next(iter(v)) for k, v in by_amt.items() if len(v) == 1}
+    by_suffix = {k: next(iter(v)) for k, v in by_suffix.items() if len(v) == 1}
+    return by_faktur, by_amt, by_suffix
+
+
+def build_rekon(coretax: pd.DataFrame, sap: pd.DataFrame, etb: dict, cfg: Config,
+                cab_by_faktur=None, cab_by_amt=None, cab_by_suffix=None):
+    """Pivot reportable PPN by uker × masa, fold branches into their parent (via
+    the RECLASS map), join the ETB balance, compute SELISIH. Lists every ETB uker.
+    Fakturs whose uker can't be resolved are flagged. Returns (rekon_df, flagged_df).
+    Pass the cab_* maps from build_cabang_index() to resolve uker across sheets."""
+    from collections import defaultdict
+    etb_ukers = set(etb)
+    reclass = build_reclass_map(sap, etb_ukers)
+
+    if cab_by_faktur is None:
+        inv = sap[sap["dokumen_status"] == "INVOICE"]
+        cab_by_faktur = {r["nomor_faktur"]: r.get("kode_cabang")
+                         for _, r in inv.iterrows() if r["nomor_faktur"]}
+    cab_by_amt = cab_by_amt or {}
+    cab_by_suffix = cab_by_suffix or {}
+
+    pivot = defaultdict(float)
+    flagged = []
+    for _, c in coretax.iterrows():
+        fk = c["nomor_faktur"]
+        ppn = to_num(c.get("ppn"))
+        masa = c.get("masa")
+        cab = (cab_by_faktur.get(fk)
+               or cab_by_suffix.get(faktur_key(fk, 7))
+               or cab_by_amt.get((c["npwp_penjual"], round(to_num(c.get("dpp"))))))
+        uker = derive_uker(cab)
+        if uker is not None and uker not in etb_ukers:
+            uker = reclass.get(uker, uker)               # fold branch into parent
+        if uker is None or uker not in etb_ukers:
+            flagged.append({"Nomor Faktur": fk, "Kode Cabang": cab, "PPN": round(ppn),
+                            "Keterangan": "Uker tidak terpetakan — cabang perlu reclass ke induk, atau faktur tidak ketemu di SAP"})
+            continue
+        if pd.notna(masa):
+            pivot[(uker, int(masa))] += ppn
+
+    rows = []
+    for u in sorted(etb_ukers):
+        row, total = {"KODE UKER": u}, 0.0
+        for mi, mlabel in enumerate(REKON_MONTHS, 1):
+            v = pivot.get((u, mi), 0.0)
+            row[mlabel] = round(v) if v else None
+            total += v
+        e = etb.get(u)
+        row["TOTAL"] = round(total)
+        row["ETB"] = round(e) if e is not None else None
+        row["SELISIH"] = round((e or 0) + total) if e is not None else None
+        rows.append(row)
+    cols = ["KODE UKER"] + REKON_MONTHS + ["TOTAL", "ETB", "SELISIH"]
+    rekon_df = pd.DataFrame(rows, columns=cols).dropna(axis=1, how="all")
+    flagged_df = pd.DataFrame(flagged, columns=["Nomor Faktur", "Kode Cabang", "PPN", "Keterangan"])
+    return rekon_df, flagged_df

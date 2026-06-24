@@ -12,6 +12,17 @@ def fm_import_bytes(result, sheet_name="FM - Import") -> bytes:
     return buf.getvalue()
 
 
+def rekon_bytes(rekon_df, flagged_df) -> bytes:
+    """The REKON sheet + a list of fakturs whose uker needs a manual reclass."""
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xl:
+        rekon_df.to_excel(xl, sheet_name="REKON", index=False)
+        (flagged_df if len(flagged_df)
+         else pd.DataFrame(columns=["Nomor Faktur", "Keterangan"])
+         ).to_excel(xl, sheet_name="Perlu Reclass", index=False)
+    return buf.getvalue()
+
+
 def workbook_bytes(result) -> bytes:
     """Full review workbook: template + exceptions + run stats."""
     buf = io.BytesIO()

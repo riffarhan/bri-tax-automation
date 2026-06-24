@@ -14,8 +14,9 @@ import streamlit as st
 import pandas as pd
 
 from engine import (Config, read_sap, build_doc_index, normalize_coretax,
-                    coretax_seed_from_sap, read_coretax, reconcile, BULAN_ID)
-from writer import fm_import_bytes, workbook_bytes
+                    coretax_seed_from_sap, read_coretax, reconcile, BULAN_ID,
+                    read_etb, build_cabang_index, build_rekon)
+from writer import fm_import_bytes, workbook_bytes, rekon_bytes
 
 # ---- branding (name combines Alkaina + Farhan) ------------------------------
 APP_NAME = "Alfa"
@@ -74,6 +75,7 @@ with st.sidebar:
     sap_file = st.file_uploader("SAP PPN WAPU extract (.xlsx)", type=["xlsx"])
     st.caption("Current and adjacent-month sheets are detected automatically "
                "for document-number matching.")
+    etb_file = st.file_uploader("ETB file (.xlsx) — for the Rekon tab", type=["xlsx"], key="etb")
 
 cfg = Config(ro_name=ro.strip().upper(), masa=int(masa), tahun=int(tahun))
 
@@ -170,7 +172,8 @@ c2.metric("Doc numbers filled", f"{s['doc_filled']}/{s['fm_import_rows']}")
 c3.metric("Needs review", s["exceptions"])
 c4.metric("SAP invoices", s["sap_invoice_rows"])
 
-tab1, tab2 = st.tabs([f"⚠️ Exceptions ({s['exceptions']})", "✅ FM-Import template"])
+tab1, tab2, tab3 = st.tabs(
+    [f"⚠️ Exceptions ({s['exceptions']})", "✅ FM-Import template", "📊 Rekon"])
 with tab1:
     if len(res.exceptions):
         st.caption("Only these rows need a human — everything else is automated.")
@@ -182,6 +185,33 @@ with tab1:
         st.success("No exceptions — everything reconciles. ✨")
 with tab2:
     st.dataframe(res.fm_import, use_container_width=True, hide_index=True)
+with tab3:
+    if not etb_file:
+        st.info("Upload the **ETB file** in the sidebar to build the Rekon "
+                "(PPN per uker × masa, vs the ETB ledger balance).")
+    elif "ppn" not in coretax or coretax["ppn"].fillna(0).eq(0).all():
+        st.warning("The **PPN** column is empty — the Rekon sums PPN per uker. "
+                   "Fill PPN (from Coretax) in the grid, or use Upload-file mode.")
+    else:
+        try:
+            etb = read_etb(etb_file, ro_name=cfg.ro_name)
+            cbf, cba, cbs = build_cabang_index(sap_file)
+            rekon_df, reclass_flag = build_rekon(coretax, sap, etb, cfg, cbf, cba, cbs)
+            st.caption("PPN per uker × masa, joined to the ETB balance. "
+                       "**SELISIH** ≠ 0 → investigate. Branches are folded into "
+                       "their parent uker via the reclass; anything that couldn't "
+                       "be mapped is listed below.")
+            st.dataframe(rekon_df, use_container_width=True, hide_index=True)
+            if len(reclass_flag):
+                with st.expander(f"⚠️ Perlu reclass / uker tidak terpetakan — {len(reclass_flag)} faktur",
+                                 expanded=True):
+                    st.dataframe(reclass_flag, use_container_width=True, hide_index=True)
+            st.download_button(
+                "⬇️ Rekon (.xlsx)", rekon_bytes(rekon_df, reclass_flag),
+                file_name=f"Rekon PPN WAPU {cfg.ro_name} {BULAN_ID[cfg.masa]} {cfg.tahun}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        except Exception as e:  # noqa
+            st.error(f"Gagal membuat Rekon: {e}")
 
 st.divider()
 fname = f"Template Impor PPN WAPU PSIAP RO {cfg.ro_name} {BULAN_ID[cfg.masa]} {cfg.tahun}.xlsx"
