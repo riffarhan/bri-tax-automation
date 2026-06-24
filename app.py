@@ -115,10 +115,10 @@ if mode == "Upload file":
     if ct_file:
         coretax = read_coretax(ct_file, ct_sheet)
 else:
-    st.caption("The grid is pre-filled from SAP. Fill in **Masa** (the faktur's "
-               "*Masa Pajak*, from Coretax) and fix **Status** for any faktur "
-               "that isn't *approved*. For fakturs that exist only in Coretax, "
-               "add a row at the bottom.")
+    st.caption("The grid is pre-filled from SAP. Fill in **Masa PPN** (the "
+               "faktur's *Masa Pajak*, from Coretax) and fix **Status** for any "
+               "faktur that isn't *approved*. For fakturs that exist only in "
+               "Coretax, add a row at the bottom.")
     seed = coretax_seed_from_sap(sap, cfg)
     edited = st.data_editor(
         seed, num_rows="dynamic", use_container_width=True, height=340,
@@ -130,7 +130,7 @@ else:
             "nama_penjual": st.column_config.TextColumn(
                 "Nama Vendor", help="Nama penjual / vendor."),
             "masa": st.column_config.NumberColumn(
-                "Masa", min_value=1, max_value=12, step=1,
+                "Masa PPN", min_value=1, max_value=12, step=1,
                 help="Masa Pajak Faktur — masa pajak dari faktur di Coretax. "
                      "Sering bulan sebelumnya, jadi beda dari masa setor di sidebar."),
             "tahun": st.column_config.NumberColumn(
@@ -188,10 +188,10 @@ if coretax is None or len(coretax) == 0:
 
 missing_masa = int(coretax["masa"].isna().sum()) if "masa" in coretax else 0
 if missing_masa:
-    st.warning(f"⏳ {missing_masa} row(s) have no **Masa** yet — fill the faktur's "
-               "*Masa Pajak* from Coretax (or switch the Coretax source to "
-               "**Upload file**, which fills masa + PPN automatically) so "
-               "`MASA_PAJAK` is correct.")
+    st.warning(f"⏳ {missing_masa} row(s) have no **Masa PPN** yet — fill the "
+               "faktur's *Masa Pajak* from Coretax (or switch the Coretax source "
+               "to **Upload file**, which fills it automatically) so `MASA_PAJAK` "
+               "is correct.")
 
 # ---------------------------------------------------------------- step 3: result
 cbf, cba, cbs = build_cabang_index(sap_file)          # for kode uker + the Rekon
@@ -231,9 +231,10 @@ with tab3:
                 "per uker × masa vs the ETB *saldo*). Note: the ETB file gives the "
                 "balance, **not** the per-faktur PPN.")
     elif "masa" not in coretax or coretax["masa"].isna().all():
-        st.warning("The Rekon groups PPN by uker × **masa**, but no **Masa** is "
-                   "filled yet. Fill **Masa** from Coretax in the grid, or switch "
-                   "the Coretax source above to **Upload file** (which has masa + PPN).")
+        st.warning("The Rekon groups PPN by uker × **masa**, but no **Masa PPN** "
+                   "is filled yet. Fill **Masa PPN** from Coretax in the grid, or "
+                   "switch the Coretax source above to **Upload file** (which has "
+                   "masa + PPN).")
     elif "ppn" not in coretax or coretax["ppn"].fillna(0).eq(0).all():
         st.warning("The **PPN** column is empty — the Rekon sums PPN per uker. "
                    "Fill PPN (from Coretax) in the grid, or use Upload-file mode.")
