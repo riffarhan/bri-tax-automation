@@ -38,9 +38,10 @@ FULL_EXTRA_COLUMNS = ["Nama Vendor", "Document Number SAP", "Kode Uker", "Nama U
                       "Jumlah Pajak di SAP", "Selisih", "Tanggal Faktur"]
 FM_IMPORT_FULL_COLUMNS = FM_IMPORT_COLUMNS + FULL_EXTRA_COLUMNS
 
-# Coretax crediting status -> PSIAP KONFIRMASI code. Grid keeps the raw Coretax
-# value ('uncredited'/'credited'). ('credited' code is a guess — only
-# 'uncredited -> 2' has ever appeared in the real WAPU data.)
+# Coretax crediting status -> PSIAP KONFIRMASI code, confirmed by the Petunjuk
+# Isian: 1 = Dikreditkan (credited), 2 = Tidak Dikreditkan (uncredited). The grid
+# keeps the raw Coretax value ('uncredited'/'credited') as in the Faktur Masukan
+# sheet; the upload template gets the code (uncredited -> 2).
 KONFIRMASI_CODE = {"uncredited": 2, "credited": 1}
 
 
