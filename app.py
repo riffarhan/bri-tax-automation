@@ -7,6 +7,9 @@ Flow: upload SAP → the grid pre-fills from SAP → fill the Coretax masa + sta
 Run locally / on an internal server (NOT public cloud — data is bank-sensitive):
     streamlit run app.py
 """
+import os
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
 
@@ -14,14 +17,18 @@ from engine import (Config, read_sap, build_doc_index, normalize_coretax,
                     coretax_seed_from_sap, read_coretax, reconcile, BULAN_ID)
 from writer import fm_import_bytes, workbook_bytes
 
-# ---- branding (name combines Alkaina + Farhan; one line to swap) ------------
-APP_NAME = "ALFA"
+# ---- branding (name combines Alkaina + Farhan) ------------------------------
+APP_NAME = "Alfa"
 APP_TAGLINE = "PPN WAPU reconciliation & PSIAP export"
+LOGO = str(Path(__file__).parent / "assets" / "alfa-logo.png")
+_HAS_LOGO = os.path.exists(LOGO)
 MONTHS_EN = {1: "January", 2: "February", 3: "March", 4: "April", 5: "May",
              6: "June", 7: "July", 8: "August", 9: "September", 10: "October",
              11: "November", 12: "December"}
 
-st.set_page_config(page_title=APP_NAME, page_icon="🧾", layout="wide")
+st.set_page_config(page_title=APP_NAME, page_icon=LOGO if _HAS_LOGO else "🧾", layout="wide")
+if _HAS_LOGO:
+    st.logo(LOGO)
 
 
 def _password_ok() -> bool:
@@ -33,7 +40,10 @@ def _password_ok() -> bool:
         return True
     if st.session_state.get("auth_ok"):
         return True
-    st.title(APP_NAME)
+    if _HAS_LOGO:
+        st.image(LOGO, width=140)
+    else:
+        st.title(APP_NAME)
     with st.form("login"):
         entered = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Enter")
@@ -48,7 +58,10 @@ def _password_ok() -> bool:
 if not _password_ok():
     st.stop()
 
-st.title(APP_NAME)
+if _HAS_LOGO:
+    st.image(LOGO, width=150)
+else:
+    st.title(APP_NAME)
 st.caption(APP_TAGLINE)
 
 # ---------------------------------------------------------------- sidebar: period + SAP
