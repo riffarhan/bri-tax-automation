@@ -47,20 +47,20 @@ FM_IMPORT_FULL_COLUMNS = FM_IMPORT_COLUMNS + FULL_EXTRA_COLUMNS
 KONFIRMASI_CODE = {"uncredited": 2, "credited": 1}
 
 
-def _load_uker_master():
-    """kode_uker -> nama_uker, from the bundled slim master (names only)."""
-    path = os.path.join(os.path.dirname(__file__), "data", "uker_master.csv")
+def _load_csv_map(filename, key, val, valfn=str):
+    path = os.path.join(os.path.dirname(__file__), "data", filename)
     out = {}
     try:
         with open(path, newline="") as f:
             for row in csv.DictReader(f):
-                out[int(row["kode_uker"])] = row["nama_uker"]
+                out[int(row[key])] = valfn(row[val])
     except (OSError, ValueError, KeyError):
         pass
     return out
 
 
-UKER_MASTER = _load_uker_master()   # exact uker names (master); ETB is the fallback
+UKER_MASTER = _load_csv_map("uker_master.csv", "kode_uker", "nama_uker")  # names
+CABANG_INDUK = _load_csv_map("cabang_induk.csv", "cabang", "induk", int)  # branch->induk
 
 
 @dataclass
@@ -358,9 +358,7 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
         # --- full review row (upload columns + context/recon columns) ---
         info = resolve_sap_info(fk, c["npwp_penjual"], c.get("dpp"),
                                 cab_by_faktur, cab_by_amt, cab_by_suffix)
-        uker = derive_uker(info.get("cabang"))
-        if uker is not None and uker not in etb_ukers:
-            uker = reclass.get(uker, uker)
+        uker = resolve_uker(info.get("cabang"), etb_ukers, reclass)
         ppn_fak = to_num(c.get("ppn"))
         if info:
             dpp_v, sap_ppn = to_num(info.get("dpp")), to_num(info.get("amt"))
@@ -414,6 +412,9 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
 
     fm_import = pd.DataFrame(rows, columns=FM_IMPORT_COLUMNS)
     fm_import_full = pd.DataFrame(full, columns=FM_IMPORT_FULL_COLUMNS)
+    if "Kode Uker" in fm_import_full.columns:        # keep it an int, not 106.0
+        fm_import_full["Kode Uker"] = pd.to_numeric(
+            fm_import_full["Kode Uker"], errors="coerce").astype("Int64")
     exceptions = pd.DataFrame(exc, columns=["Nomor Faktur", "NPWP Penjual", "Nama",
                                             "Masa", "Jenis", "Keterangan"])
     stats = {
@@ -521,10 +522,21 @@ def read_uker_names(path, sheet=None, ro_name=None) -> dict:
 
 
 def derive_uker(kode_cabang):
-    """Parent uker from the SAP branch code (strip leading zeros). Returns None
-    for branch/non-numeric codes that need a reclass to their parent."""
+    """Uker code from the SAP branch code (strip leading zeros). None if non-numeric."""
     s = norm_id(kode_cabang)
     return int(s) if s.isdigit() else None
+
+
+def resolve_uker(cabang, etb_ukers=None, reclass=None):
+    """Cabang -> parent uker: derive the uker, fold a branch into its induk via
+    the master (CABANG_INDUK), then the nominal RECLASS map as a fallback."""
+    u = derive_uker(cabang)
+    if u is None:
+        return None
+    u = CABANG_INDUK.get(u, u)                  # master branch -> induk (primary)
+    if reclass and etb_ukers is not None and u not in etb_ukers:
+        u = reclass.get(u, u)                   # nominal reclass (fallback)
+    return u
 
 
 def build_reclass_map(sap: pd.DataFrame, etb_ukers: set) -> dict:
@@ -612,9 +624,7 @@ def build_rekon(coretax: pd.DataFrame, sap: pd.DataFrame, etb: dict, cfg: Config
         info = resolve_sap_info(fk, c["npwp_penjual"], c.get("dpp"),
                                 cab_by_faktur, cab_by_amt, cab_by_suffix)
         cab = info.get("cabang")
-        uker = derive_uker(cab)
-        if uker is not None and uker not in etb_ukers:
-            uker = reclass.get(uker, uker)               # fold branch into parent
+        uker = resolve_uker(cab, etb_ukers, reclass)
         if uker is None or uker not in etb_ukers:
             flagged.append({"Nomor Faktur": fk, "Kode Cabang": cab, "PPN": round(ppn),
                             "Keterangan": "Uker tidak terpetakan — cabang perlu reclass ke induk, atau faktur tidak ketemu di SAP"})
