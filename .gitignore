@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# OS / tooling
+.DS_Store
+*.log
+.playwright-mcp/
+
+# Bank-sensitive data & artifacts — NEVER commit (real NPWPs, faktur, amounts)
+*.xlsx
+*.xls
+out_*.xlsx
+demo/
+WORK */
