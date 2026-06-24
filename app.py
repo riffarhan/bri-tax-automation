@@ -144,10 +144,9 @@ else:
                 "Status", options=["approved", "not approved"],
                 help="Status validasi faktur di Coretax."),
             "konfirmasi": st.column_config.SelectboxColumn(
-                "Konfirmasi", options=["Belum dikreditkan", "Sudah dikreditkan"],
-                help="Status pengkreditan faktur Pajak Masukan di Coretax (asalnya "
-                     "'uncredited'/'credited'). Untuk WAPU hampir selalu 'Belum "
-                     "dikreditkan' → KONFIRMASI = 2 di template."),
+                "Konfirmasi", options=["uncredited", "credited"],
+                help="Status pengkreditan faktur di Coretax (sama spt Excel). "
+                     "Untuk WAPU hampir selalu 'uncredited' → KONFIRMASI = 2."),
         })
     coretax = normalize_coretax(edited)
 
