@@ -79,20 +79,28 @@ else:
     coretax = normalize_coretax(edited)
 
     # --- audit trail: what was changed from the SAP-seeded values? ---
-    seed_idx = seed.drop_duplicates("nomor_faktur").set_index("nomor_faktur")
-    seed_fakturs = set(seed_idx.index.astype(str))
+    def _changed(col, old, new):
+        if pd.isna(new) or str(old).strip().lower() in ("", "nan", "none"):
+            return False
+        if col == "dpp":                              # numeric: ignore formatting
+            try:
+                return round(float(old)) != round(float(new))
+            except (TypeError, ValueError):
+                pass
+        return str(old).strip() != str(new).strip()   # text: ignore whitespace
+
+    # compare by ROW POSITION (faktur isn't unique — blank/zero fakturs exist)
+    base = seed.reset_index(drop=True)
     overrides, added = [], []
-    for _, row in edited.iterrows():
-        fk = str(row["nomor_faktur"]).strip()
-        if not fk:
-            continue
-        if fk not in seed_fakturs:
-            added.append(fk)
+    for idx, row in edited.reset_index(drop=True).iterrows():
+        if idx >= len(base):                          # rows appended in the editor
+            if str(row["nomor_faktur"]).strip():
+                added.append(str(row["nomor_faktur"]).strip())
             continue
         for col, lbl in [("npwp_penjual", "Seller NPWP"), ("dpp", "DPP"), ("nama_penjual", "Vendor")]:
-            old, new = seed_idx.loc[fk, col], row[col]
-            if pd.notna(new) and str(old).strip() not in ("", "nan") and str(old) != str(new):
-                overrides.append({"Faktur": fk, "Field": lbl,
+            old, new = base.loc[idx, col], row[col]
+            if _changed(col, old, new):
+                overrides.append({"Faktur": str(row["nomor_faktur"]), "Field": lbl,
                                   "From SAP": old, "Changed to (Coretax)": new})
     if overrides or added:
         with st.expander(f"Changes from SAP — {len(overrides)} value(s) overridden, "

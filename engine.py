@@ -302,6 +302,10 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
         })
 
         # --- exception checks (flag for review, never block) ---
+        blank_faktur = (not fk) or set(fk) <= {"0"}
+        if blank_faktur:
+            exc.append(_ex(fk, c, "Missing faktur number",
+                           "Faktur number is blank / all zeros in the source — enter the correct e-faktur number from Coretax."))
         if how == "tidak ketemu":
             exc.append(_ex(fk, c, "Doc number not found",
                            "Not found in SAP by faktur number or by NPWP+amount — the document number must be filled in / verified manually."))
@@ -316,7 +320,7 @@ def reconcile(coretax: pd.DataFrame, sap: pd.DataFrame, cfg: Config,
         if str(c["status"]).strip().lower() != "approved":
             exc.append(_ex(fk, c, "Not approved",
                            f"Coretax status = {c['status']} — faktur cannot be credited yet"))
-        if c["_dupcount"] > 1:
+        if c["_dupcount"] > 1 and not blank_faktur:
             exc.append(_ex(fk, c, "Possible duplicate",
                            f"Faktur number is similar (last 6 digits = {c['_dupgroup']}) to another faktur"))
 
