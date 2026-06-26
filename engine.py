@@ -450,6 +450,10 @@ def run(sap_path, coretax_path, cfg: Config,
 REKON_MONTHS = ["JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI", "JULI",
                 "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"]
 ETB_SHEET_BY_RO = {"PALEMBANG": "PLG", "YOGYAKARTA": "YOG"}
+# the ETB sheet name varies month to month (PLG / REKON PALEMBANG / …), so match
+# by RO keyword rather than an exact name.
+ETB_SHEET_HINTS = {"PALEMBANG": ["PLG", "PALEMBANG"],
+                   "YOGYAKARTA": ["YOG", "YOGYA", "JOGJA"]}
 
 
 def _extract_uker_balance(sh) -> dict:
@@ -475,21 +479,26 @@ def _extract_uker_balance(sh) -> dict:
 
 
 def read_etb(path, sheet=None, ro_name=None) -> dict:
-    """uker(int) -> ledger balance, from the ETB workbook. Picks the per-RO sheet
-    (PLG/YOG) when present; otherwise scans every sheet for the uker→balance block."""
+    """uker(int) -> ledger balance. Uses the chosen sheet if given. Otherwise looks
+    only at sheets that actually contain a uker→balance block (so recon/pivot sheets
+    are ignored), prefers one whose name matches the RO keyword (PLG/PALEMBANG …),
+    and otherwise takes the block with the most ukers. The app's sheet picker is the
+    override for awkward files."""
     import openpyxl
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    target = sheet or (ETB_SHEET_BY_RO.get(ro_name.strip().upper()) if ro_name else None)
-    if target and target in wb.sheetnames:
-        out = _extract_uker_balance(wb[target])
-    else:
-        out = {}
-        for sn in wb.sheetnames:
-            cand = _extract_uker_balance(wb[sn])
-            if len(cand) > len(out):
-                out = cand
+    if sheet and sheet in wb.sheetnames:
+        out = _extract_uker_balance(wb[sheet]); wb.close(); return out
+    blocks = {sn: _extract_uker_balance(wb[sn]) for sn in wb.sheetnames}
     wb.close()
-    return out
+    blocks = {sn: b for sn, b in blocks.items() if b}      # only sheets with a block
+    if not blocks:
+        return {}
+    if ro_name:
+        hints = ETB_SHEET_HINTS.get(ro_name.strip().upper(), [])
+        ro_match = [b for sn, b in blocks.items() if any(h in sn.upper() for h in hints)]
+        if ro_match:
+            return max(ro_match, key=len)
+    return max(blocks.values(), key=len)
 
 
 def read_uker_names(path, sheet=None, ro_name=None) -> dict:
