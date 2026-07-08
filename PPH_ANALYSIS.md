@@ -77,19 +77,21 @@ per uker → tarik ±15 record) → hasilnya folder file per-uker
 - NITKU Pemotong = 6 digit terakhir NITKU uker (master), NPWP Pemotong = BRI HO.
 - SIPOBRI sumbernya BIRTAX; olahnya cuma "kolom hitam" tambahan Salsa.
 - Manual dari DIO, langsung ke template, Yogya selalu ada.
-- ETB PPh = `ETB PPh Unifikasi ...xlsx` sheet PALEMBANG/YOGYAKARTA.
+- ETB PPh = `ETB PPh Unifikasi ...xlsx` sheet PALEMBANG/YOGYAKARTA (Salsa konfirmasi).
+- **Struktur RO** (Salsa, 8 Jul): satu RO contains **KANINS + SENDIK + RO-nya sendiri**.
+  Nama file kayak "RO & KANINS" / "SENDIK & RO" cuma nandain tarikan mana yang ada
+  isinya bulan itu — **pengolahan datanya identik, diimpor bareng**. Reader kita
+  tinggal concat semua tarikan, nggak ada format khusus per entitas.
 
 ## Masih perlu ditanya ke Salsa
 
-1. **PPh 23 RO & KANINS** — dua tarikan itu kolomnya beda apa cuma urutan?
-   Gabunginnya gimana? (udah ditanya, belum kejawab)
-2. **BIRTAX export** — bentuk filenya kayak apa, dan "kolom hitam" yang kamu
-   tambahin itu kolom apa aja?
-3. **DIO** — data manualnya dikasih dalam bentuk apa (file/email/WA)?
-4. **Prioritas** — pasal mana yang paling banyak baris / paling makan waktu?
+1. **BIRTAX export** — bentuk filenya kayak apa, dan "kolom hitam" yang kamu
+   tambahin itu kolom apa aja? (minta 1 contoh file)
+2. **DIO** — data manualnya dikasih dalam bentuk apa (file/email/WA)?
+3. **Prioritas** — pasal mana yang paling banyak baris / paling makan waktu?
    (pilot mulai dari situ; dugaan: PPh 22)
-5. **Email / Fasilitas Insentif / Metode Pembayaran** di template — konstanta?
-6. **NPWP 0000** — kira-kira berapa kasus per bulan?
+4. **Email / Fasilitas Insentif / Metode Pembayaran** di template — konstanta?
+5. **NPWP 0000** — kira-kira berapa kasus per bulan?
 
 ## Rencana build (bertahap, kayak PPN dulu)
 
