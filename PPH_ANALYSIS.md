@@ -100,13 +100,22 @@ baca pakai `xlrd.open_workbook(..., ignore_workbook_corruption=True)`.
 Konsolidator kita: drop folder/multi-file → concat semua `Worksheet` → template.
 NPWP vendor formatnya lama (`01.920.247.2-062.000`) → perlu normalisasi 15/16 digit.
 
+## Jawaban Salsa ronde 2 (8 Jul 2026, WA) — SEMUA pertanyaan tertutup
+
+- **DIO**: kirim **Excel terstruktur** (+ PDF bukti fisik), dinamain
+  `B.135.e-CPULOPYGY072026` dst; Salsa pindahin barisnya ke file PPh terkait.
+  Contoh nyata: folder `B.34.e-CPUOPSYGY012026 SENDIK MANUAL YOGYAKARTA`
+  (Excel PPh 23 manual + PPN Wapu manual + PDF faktur/pembukuan).
+  → **Udah dibangun**: `read_dio_pph` + `build_template_dio` (Jenis Dok Ref = 07;
+  nomor+tanggal dok & tanggal pemotongan dari PDF → flagged buat diisi).
+  Validasi vs template MANUAL SENDIK Des 2025: **99.5% kritis, 67 baris**.
+- **Email/Fasilitas/Metode Pembayaran**: "biasanya sama" → konstanta ✓ (sesuai engine).
+- **NPWP 0000**: "seringgggggggg" → kasus sering banget; workflow flag + isi grid
+  jadi fitur inti, bukan edge case. (Salsa juga punya file "Pengecekan NPWP" sendiri.)
+
 ## Masih perlu ditanya ke Salsa
 
-1. **DIO** — data manualnya dikasih dalam bentuk apa (file/email/WA)?
-2. **Prioritas** — pasal mana yang paling banyak baris / paling makan waktu?
-   (pilot mulai dari situ; dugaan: PPh 22)
-3. **Email / Fasilitas Insentif / Metode Pembayaran** di template — konstanta?
-4. **NPWP 0000** — kira-kira berapa kasus per bulan?
+1. **Prioritas** — pasal mana yang paling makan waktu? (buat urutan rollout UI)
 
 ## STATUS BUILD (8 Jul 2026) — engine SELESAI & tervalidasi
 
