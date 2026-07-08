@@ -16,7 +16,7 @@ PSIAP/Pajakku pakai template per pasal.
 | PPh 22 | SAP | `NEW TEMPLATE PSIAP PPH 22 ...xlsx` |
 | PPh 23 | SAP (tarikan RO + KANINS digabung) | `NEW TEMPLATE PSIAP PPH 23 ...xlsx` |
 | PPh 4 ayat 2 | SAP | `NEW TEMPLATE PSIAP PPH 4 AYAT 2 ...xlsx` |
-| SIPOBRI | **BIRTAX** (bukan SAP) | `NEW TEMPLATE PSIAP SIPOBRI ...xlsx` |
+| SIPOBRI | **BRITAX** (bukan SAP) | `NEW TEMPLATE PSIAP SIPOBRI ...xlsx` |
 
 Plus jalur samping: **transaksi manual** (penyetoran manual, nggak nyangkut SAP) —
 datanya dari **DIO**, tidak diolah, langsung diketik ke template impor.
@@ -67,7 +67,7 @@ per uker → tarik ±15 record) → hasilnya folder file per-uker
   rekon akhir — bukan blocker template.
 - **Otomasi yang bisa diotomasi**: konsolidasi file ekspor per-uker (gantiin Get Data)
   + rekon PSIAP×Coretax dibangun; narikan per-NITKU-nya sendiri tetap manual
-  (butuh login Coretax/BIRTAX; RPA nanti dulu).
+  (butuh login Coretax/BRITAX; RPA nanti dulu).
 - **Jalur manual (DIO)**: tool harus bisa nambah baris manual ke template
   (grid dynamic rows — pola yang sama udah ada di PPN).
 
@@ -75,7 +75,7 @@ per uker → tarik ±15 record) → hasilnya folder file per-uker
 
 - Kode Objek Pajak = KOP SAP verbatim (cek file, no mapping).
 - NITKU Pemotong = 6 digit terakhir NITKU uker (master), NPWP Pemotong = BRI HO.
-- SIPOBRI sumbernya BIRTAX; olahnya cuma "kolom hitam" tambahan Salsa.
+- SIPOBRI sumbernya BRITAX; olahnya cuma "kolom hitam" tambahan Salsa.
 - Manual dari DIO, langsung ke template, Yogya selalu ada.
 - ETB PPh = `ETB PPh Unifikasi ...xlsx` sheet PALEMBANG/YOGYAKARTA (Salsa konfirmasi).
 - **Struktur RO** (Salsa, 8 Jul): satu RO contains **KANINS + SENDIK + RO-nya sendiri**.
@@ -83,9 +83,9 @@ per uker → tarik ±15 record) → hasilnya folder file per-uker
   isinya bulan itu — **pengolahan datanya identik, diimpor bareng**. Reader kita
   tinggal concat semua tarikan, nggak ada format khusus per entitas.
 
-## BIRTAX / SIPO — struktur kebuka (8 Jul 2026)
+## BRITAX / SIPO — struktur kebuka (8 Jul 2026)
 
-Konfirmasi Salsa: hasil tarikan BIRTAX = folder `SIPO PALEMBANG` / `SIPO YOGYAKARTA`
+Konfirmasi Salsa: hasil tarikan BRITAX = folder `SIPO PALEMBANG` / `SIPO YOGYAKARTA`
 (file `.xls` per kode uker, ditarik satu-satu), lalu dia Get Data lagi jadi satu sheet
 (`GET DATA SIPO ...xlsx`: sheet `SIPO PALEMBANG` 380 baris → `DATA OLAH`).
 
@@ -115,4 +115,4 @@ NPWP vendor formatnya lama (`01.920.247.2-062.000`) → perlu normalisasi 15/16 
 2. Rekon ETB PPh (reuse engine rekon PPN, per uker, tanpa reclass).
 3. Scale ke PPh 23 (setelah jawab #1) + 4 ayat 2, lalu Yogyakarta + baris manual DIO.
 4. Konsolidator file ekspor Coretax/SIPO per-uker + rekon PSIAP×Coretax.
-5. SIPOBRI (setelah lihat contoh BIRTAX).
+5. SIPOBRI (setelah lihat contoh BRITAX).
