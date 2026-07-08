@@ -56,7 +56,7 @@ def _postprocess(df: pd.DataFrame) -> pd.DataFrame:
 DATE_COLS = ["Tanggal Dokumen Referensi", "Tanggal Pemotongan"]
 
 
-def _grid(label, res):
+def _grid(label, res, cfg):
     """Editable template grid; returns the post-processed DataFrame."""
     st.caption("Semua kolom bisa diedit — isi **NPWP Penerima** yang di-flag "
                "(0000/kosong) dari konfirmasi uker + Coretax; NITKU penerima "
@@ -68,7 +68,10 @@ def _grid(label, res):
         df[c] = pd.to_datetime(df[c], errors="coerce")
     edited = st.data_editor(
         df, num_rows="dynamic", use_container_width=True, height=320,
-        key=f"grid_{label}",
+        # key ties the editor's edit-state to THIS dataset — without the
+        # ro/masa/rowcount suffix, edits made before switching RO/masa/files
+        # would silently re-apply to the new rows
+        key=f"grid_{label}_{cfg.ro_name}_{cfg.masa}_{cfg.tahun}_{len(df)}",
         column_config={
             "NPWP Penerima Penghasilan": st.column_config.TextColumn(
                 "NPWP Penerima Penghasilan", width="medium",
@@ -186,7 +189,7 @@ def render(ro: str, masa: int, tahun: int, app_name: str = "Alfa"):
     edited = {}
     for tab, label in zip(tabs[1:-1], labels):
         with tab:
-            edited[label] = _grid(label, results[label])
+            edited[label] = _grid(label, results[label], cfg)
 
     rekons = {}
     with tabs[-1]:
