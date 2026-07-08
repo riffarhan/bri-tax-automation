@@ -21,7 +21,7 @@ from writer import fm_import_bytes, fm_import_full_bytes, workbook_bytes, rekon_
 
 # ---- branding (name combines Alkaina + Farhan) ------------------------------
 APP_NAME = "Alfa"
-APP_TAGLINE = "PPN WAPU reconciliation & PSIAP export"
+APP_TAGLINE = "Tax reconciliation & PSIAP export — PPN WAPU · PPh Unifikasi"
 LOGO = str(Path(__file__).parent / "assets" / "alfa-logo.png")
 _HAS_LOGO = os.path.exists(LOGO)
 MONTHS_EN = {1: "January", 2: "February", 3: "March", 4: "April", 5: "May",
@@ -66,17 +66,26 @@ else:
     st.title(APP_NAME)
 st.caption(APP_TAGLINE)
 
-# ---------------------------------------------------------------- sidebar: period + SAP
+# ---------------------------------------------------------------- sidebar: stream + period
 with st.sidebar:
+    pajak = st.radio("Jenis pajak", ["PPN WAPU", "PPh Unifikasi"], horizontal=True)
     st.header("1 · Period & source")
     ro = st.selectbox("Regional Office", ["PALEMBANG", "YOGYAKARTA"],
                       help="Label PSIAP & sheet ETB mengikuti RO yang dipilih.")
     masa = st.selectbox("Masa setor (bulan pelaporan)", list(BULAN_ID), index=3,
                         format_func=lambda m: f"{m:02d} — {MONTHS_EN[m]}",
                         help="Masa Pajak yang dilaporkan/disetor bulan ini (masa "
-                             "pelaporan). Beda dari kolom **Masa** di grid, yang "
-                             "adalah masa pajak faktur dari Coretax.")
+                             "pelaporan).")
     tahun = st.number_input("Year", 2024, 2030, 2026)
+
+if pajak == "PPh Unifikasi":
+    import app_pph
+    app_pph.render(ro, masa, tahun, app_name=APP_NAME)
+    st.divider()
+    st.caption(f"{APP_NAME} · made by Farhan, for Alkaina 🤍")
+    st.stop()
+
+with st.sidebar:
     sap_file = st.file_uploader("SAP PPN WAPU extract (.xlsx)", type=["xlsx"])
     st.caption("Current and adjacent-month sheets are detected automatically "
                "for document-number matching.")
