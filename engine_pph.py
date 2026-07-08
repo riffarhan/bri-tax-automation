@@ -349,6 +349,85 @@ def build_template_sipo(sipo: pd.DataFrame, cfg: PphConfig) -> PphResult:
         stats={"pasal": "SIPOBRI", "rows": len(df), "exceptions": len(exc)})
 
 
+def read_dio_pph(path_or_buf) -> pd.DataFrame:
+    """The DIO/SENDIK manual Excel (e.g. Pajak_PPH_23_Unifikasi_Manual_...xlsx):
+    Jenis Pajak | Masa Pajak | Nama Vendor | NPWP Vendor | Jumlah Penghasilan |
+    Jumlah PPH | Kanca | NPWP Uker | NITKU Uker | Kode Uker | Tarif | Kode Objek."""
+    import openpyxl
+    if hasattr(path_or_buf, "seek"):
+        path_or_buf.seek(0)
+    wb = openpyxl.load_workbook(path_or_buf, read_only=True, data_only=True)
+    for sn in wb.sheetnames:
+        ws = wb[sn]
+        rows = list(ws.iter_rows(values_only=True))
+        hi = next((i for i, r in enumerate(rows)
+                   if r and any("NPWP Vendor" in str(c) for c in r if c)), None)
+        if hi is None:
+            continue
+        cols = [str(c).strip() if c is not None else f"_c{i}"
+                for i, c in enumerate(rows[hi])]
+        data = [r for r in rows[hi + 1:] if r and any(c is not None for c in r)]
+        wb.close()
+        return pd.DataFrame(data, columns=cols[:len(data[0])] if data else cols)
+    wb.close()
+    return pd.DataFrame()
+
+
+def build_template_dio(dio: pd.DataFrame, cfg: PphConfig, pasal: str = "23") -> PphResult:
+    """DIO manual rows -> template. Everything pre-fills except the dokumen
+    referensi fields — those live in the physical PDFs, so they stay blank and
+    are flagged for Salsa. Jenis Dokumen Referensi = 07 for manual (real file)."""
+    tag = cfg.tag(pasal)
+    out, exc, rec = [], [], []
+    for i, r in dio.iterrows():
+        nama = str(r.get("Nama Vendor") or "").strip()
+        npwp = _npwp16(r.get("NPWP Vendor"))
+        kode_uker = str(r.get("Kode Uker") or "").strip().lstrip("0")
+        row = _base_row(cfg, pasal)
+        row["Jenis Dokumen Referensi"] = "07"
+
+        row["NITKU Pemotong (6 Digit Terakhir)"] = _nitku_from_uker(kode_uker)
+        if not row["NITKU Pemotong (6 Digit Terakhir)"]:
+            nit = norm_id(r.get("NITKU Uker"))
+            row["NITKU Pemotong (6 Digit Terakhir)"] = nit[-6:] if len(nit) >= 6 else ""
+        if not row["NITKU Pemotong (6 Digit Terakhir)"]:
+            exc.append({"Baris": i + 2, "Vendor": nama, "Jenis": "NITKU uker tidak ketemu",
+                        "Keterangan": f"Kode Uker {r.get('Kode Uker')}"})
+
+        if _zeros(npwp):
+            row["NPWP Penerima Penghasilan"] = ""
+            row["NITKU Penerima Penghasilan (22 Digit)"] = ""
+            exc.append({"Baris": i + 2, "Vendor": nama, "Jenis": "NPWP penerima kosong/0000",
+                        "Keterangan": "Konfirmasi ke uker lalu validasi di Coretax"})
+        else:
+            row["NPWP Penerima Penghasilan"] = npwp
+            row["NITKU Penerima Penghasilan (22 Digit)"] = npwp + "000000"
+        row["Nama Penerima Penghasilan"] = nama
+
+        row["Kode Objek Pajak"] = str(r.get("Kode Objek Pajak") or "").strip()
+        row["Penghasilan Bruto"] = round(to_num(r.get("Jumlah Penghasilan")))
+        row["Nomor Dokumen Referensi"] = ""
+        row["Tanggal Dokumen Referensi"] = ""
+        row["Tanggal Pemotongan"] = ""
+        exc.append({"Baris": i + 2, "Vendor": nama, "Jenis": "Dok referensi dari bukti fisik",
+                    "Keterangan": "Isi nomor+tanggal dokumen & tanggal pemotongan dari PDF"})
+        row["Referensi"] = tag
+        out.append(row)
+
+        try:
+            uker = int(kode_uker) if kode_uker else None
+        except ValueError:
+            uker = None
+        rec.append({"uker": uker, "pajak": -abs(to_num(r.get("Jumlah PPH")))})
+
+    df = pd.DataFrame(out, columns=TEMPLATE_COLUMNS)
+    return PphResult(
+        template=df,
+        exceptions=pd.DataFrame(exc, columns=["Baris", "Vendor", "Jenis", "Keterangan"]),
+        recon_rows=pd.DataFrame(rec, columns=["uker", "pajak"]),
+        stats={"pasal": f"{pasal} MANUAL", "rows": len(df), "exceptions": len(exc)})
+
+
 # ---------------------------------------------------------------- rekon
 
 # how each pasal's Utang column is labelled in the ETB PPh Unifikasi pivot
