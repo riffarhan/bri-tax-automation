@@ -83,15 +83,30 @@ per uker → tarik ±15 record) → hasilnya folder file per-uker
   isinya bulan itu — **pengolahan datanya identik, diimpor bareng**. Reader kita
   tinggal concat semua tarikan, nggak ada format khusus per entitas.
 
+## BIRTAX / SIPO — struktur kebuka (8 Jul 2026)
+
+Konfirmasi Salsa: hasil tarikan BIRTAX = folder `SIPO PALEMBANG` / `SIPO YOGYAKARTA`
+(file `.xls` per kode uker, ditarik satu-satu), lalu dia Get Data lagi jadi satu sheet
+(`GET DATA SIPO ...xlsx`: sheet `SIPO PALEMBANG` 380 baris → `DATA OLAH`).
+
+Kolom per-uker `.xls` (sheet `Worksheet`): `Jenis Pajak | Branch | Masa Pajak |
+Nama Vendor | NPWP Vendor | Jumlah Penghasilan | Jumlah PPH | Kode Objek Pajak |
+Tarif | Jenis Dok Reff | No Dok Reff | Tanggal Dok Reff` — **udah bawa hampir semua
+kolom template SIPOBRI** (kode objek, tarif, bruto, dok reff). "Kolom hitam" Salsa
+kemungkinan tinggal NITKU/identitas — bisa kita derive dengan diff template vs export.
+
+Catatan teknis: file `.xls`-nya BIFF lama yang ke-flag corrupt oleh xlrd →
+baca pakai `xlrd.open_workbook(..., ignore_workbook_corruption=True)`.
+Konsolidator kita: drop folder/multi-file → concat semua `Worksheet` → template.
+NPWP vendor formatnya lama (`01.920.247.2-062.000`) → perlu normalisasi 15/16 digit.
+
 ## Masih perlu ditanya ke Salsa
 
-1. **BIRTAX export** — bentuk filenya kayak apa, dan "kolom hitam" yang kamu
-   tambahin itu kolom apa aja? (minta 1 contoh file)
-2. **DIO** — data manualnya dikasih dalam bentuk apa (file/email/WA)?
-3. **Prioritas** — pasal mana yang paling banyak baris / paling makan waktu?
+1. **DIO** — data manualnya dikasih dalam bentuk apa (file/email/WA)?
+2. **Prioritas** — pasal mana yang paling banyak baris / paling makan waktu?
    (pilot mulai dari situ; dugaan: PPh 22)
-4. **Email / Fasilitas Insentif / Metode Pembayaran** di template — konstanta?
-5. **NPWP 0000** — kira-kira berapa kasus per bulan?
+3. **Email / Fasilitas Insentif / Metode Pembayaran** di template — konstanta?
+4. **NPWP 0000** — kira-kira berapa kasus per bulan?
 
 ## Rencana build (bertahap, kayak PPN dulu)
 
