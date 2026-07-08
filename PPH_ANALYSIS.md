@@ -108,11 +108,44 @@ NPWP vendor formatnya lama (`01.920.247.2-062.000`) → perlu normalisasi 15/16 
 3. **Email / Fasilitas Insentif / Metode Pembayaran** di template — konstanta?
 4. **NPWP 0000** — kira-kira berapa kasus per bulan?
 
-## Rencana build (bertahap, kayak PPN dulu)
+## STATUS BUILD (8 Jul 2026) — engine SELESAI & tervalidasi
 
-1. **Pilot: PPh 22 Palembang** — template generator (SAP `Sheet1` → sheet `Template`),
-   validasi vs template real April/Maret. Buildable sekarang, nggak nunggu jawaban.
-2. Rekon ETB PPh (reuse engine rekon PPN, per uker, tanpa reclass).
-3. Scale ke PPh 23 (setelah jawab #1) + 4 ayat 2, lalu Yogyakarta + baris manual DIO.
-4. Konsolidator file ekspor Coretax/SIPO per-uker + rekon PSIAP×Coretax.
-5. SIPOBRI (setelah lihat contoh BRITAX).
+`engine_pph.py` + `writer_pph.py` + `validate_pph.py` dibangun dan divalidasi
+lawan template real (April + Maret × Palembang + Yogyakarta = 16 kombinasi):
+
+| Stream | Field kritis | Catatan |
+|---|---|---|
+| PPh 22 | 94.6–100% | jumlah baris pas |
+| PPh 23 | 98.7–99.5% | 180/180 & 279/279 baris Yogya persis |
+| PPh 4A2 | 94.0–98.8% | baris KOP kosong dibuang + di-flag (sesuai pola Salsa) |
+| SIPOBRI | 99.6–100% | jumlah baris SEMUA persis (333/1307/334/1322) |
+
+Sisa gap = koreksian manual Salsa (NPWP 0000 / NPWP BRI sendiri / typo SAP) —
+semua ke-flag di exceptions, diisi lewat grid (pola PPN).
+
+Aturan yang kebukti waktu build:
+- **NITKU Pemotong**: SAP PPh bawa kolom NITKU sendiri (ambil 6 digit terakhir);
+  master `data/uker_nitku.csv` jadi fallback + dipakai SIPO.
+- **SIPO: uker = NAMA FILE** (tarikan per uker), bukan kolom Branch (verifikasi
+  180/180). Referensi SIPOBRI = `{tag}_{nomor urut}`; SAP = `{tag}_{Dokumen Invoice}`.
+- **Tanggal Dok Referensi** = SAP `Tanggal Invoice` (Maret 18/18); April Salsa
+  override manual → biarkan editable.
+- **Nama Penerima**: template real pakai dummy `NAMA111...` (PSIAP match by NPWP);
+  kita isi nama SAP (lebih baik), beda ini nggak dihitung kritis.
+- **KOP kosong** (deposito/reward, banyak di 4A2): keluar dari template + flag,
+  tapi TETAP dihitung di rekon (pajaknya nyata di GL).
+- **Rekon per pasal** = mirror Sheet2: `SELISIH = Utang (ETB kolom
+  "Utang Pajak - PPh Pasal NN - SAP") - PAJAK (akumulasi per uker)`.
+  Validasi April: PPh23 PLG PAJAK 8/8 + SELISIH 23/23, 4A2 SELISIH 23/23,
+  PPh22 Yogya 19/19. Yogya 4A2 beda karena bucket REWARD/PHS/DEPOSITO
+  dikategorikan manual oleh Salsa.
+- ETB PPh label uker `00008 -- KC Baturaja` + `KANWIL X (Branch)` → parser
+  `_uker_from_label`.
+- Residual SELISIH ≠ SIPO (dites, bukan): itu memang selisih yang ditelusuri manual.
+
+## Sisa kerjaan
+
+1. **UI**: tab/halaman PPh di app Streamlit (upload SAP per pasal + folder SIPO,
+   grid editable per stream, tambah baris manual DIO, download template+rekon).
+2. Rekon lapisan 2 (PSIAP × Coretax) — konsolidator EKSPOR CORETAX per-uker.
+3. Konfirmasi Salsa: DIO format, prioritas pasal, frekuensi NPWP 0000.
