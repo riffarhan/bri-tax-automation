@@ -159,13 +159,22 @@ SIPO_COLUMNS = ["Jenis Pajak", "Branch", "Masa Pajak", "Nama Vendor",
                 "Tanggal Dok Reff"]
 
 
+def _sipo_uker_stem(filename) -> str:
+    """'152.xls' / '152(1).xls' / '152 (2).xls' -> '152'."""
+    m = re.match(r"\s*(\d+)", os.path.basename(str(filename)))
+    return m.group(1) if m else ""
+
+
 def read_sipo(files) -> pd.DataFrame:
     """Consolidate the per-uker BRITAX exports (replaces Salsa's double
     Get Data). Accepts paths or uploaded file objects. The .xls files are
-    legacy BIFF that xlrd flags as corrupt -> ignore_workbook_corruption."""
+    legacy BIFF that xlrd flags as corrupt -> ignore_workbook_corruption.
+    Re-downloaded duplicates ('152.xls' + '152(1).xls' with identical content)
+    are dropped."""
     import xlrd
     frames = []
-    for f in files:
+    seen = {}          # uker stem -> list of content fingerprints already kept
+    for f in sorted(files, key=lambda x: len(getattr(x, "name", str(x)))):
         name = getattr(f, "name", str(f))
         if hasattr(f, "seek"):
             f.seek(0)
@@ -179,6 +188,11 @@ def read_sipo(files) -> pd.DataFrame:
         hdr = [str(sh.cell_value(0, c)).strip() for c in range(sh.ncols)]
         rows = [[sh.cell_value(r, c) for c in range(sh.ncols)]
                 for r in range(1, sh.nrows)]
+        stem = _sipo_uker_stem(name)
+        fp = hash(str(rows))
+        if stem and fp in seen.get(stem, []):
+            continue                      # exact re-download of the same pull
+        seen.setdefault(stem, []).append(fp)
         df = pd.DataFrame(rows, columns=hdr)
         df["_file"] = os.path.basename(name)
         frames.append(df)
@@ -308,8 +322,7 @@ def build_template_sipo(sipo: pd.DataFrame, cfg: PphConfig) -> PphResult:
         # the pull is per uker: the FILE is named after the uker it was pulled
         # for (verified 180/180 vs the real template); the Branch column inside
         # is the transaction branch and can point elsewhere.
-        fname = str(r.get("_file") or "").split(".")[0]
-        uker_file = fname if fname.isdigit() else None
+        uker_file = _sipo_uker_stem(r.get("_file")) or None
         row["NITKU Pemotong (6 Digit Terakhir)"] = (
             _nitku_from_uker(uker_file) or _nitku_from_uker(r.get("Branch")))
         if not row["NITKU Pemotong (6 Digit Terakhir)"]:
@@ -326,7 +339,13 @@ def build_template_sipo(sipo: pd.DataFrame, cfg: PphConfig) -> PphResult:
             row["NITKU Penerima Penghasilan (22 Digit)"] = npwp + "000000"
         row["Nama Penerima Penghasilan"] = nama
 
-        row["Kode Objek Pajak"] = str(r.get("Kode Objek Pajak") or "").strip()
+        kop = str(r.get("Kode Objek Pajak") or "").strip()
+        if kop in ("", "-"):
+            # older BRITAX pulls came without the KOP (Des 2025: all '-');
+            # Salsa filled it by hand — surface instead of guessing.
+            exc.append({"Baris": i + 2, "Vendor": nama, "Jenis": "Kode objek kosong",
+                        "Keterangan": "BRITAX tidak mengisi KOP — isi kode objek pajak"})
+        row["Kode Objek Pajak"] = kop
         row["Penghasilan Bruto"] = round(to_num(r.get("Jumlah Penghasilan")))
         row["Nomor Dokumen Referensi"] = str(r.get("No Dok Reff") or "").strip()
         row["Tanggal Dokumen Referensi"] = _fmt_date(r.get("Tanggal Dok Reff"))
@@ -376,7 +395,8 @@ def read_dio_pph(path_or_buf) -> pd.DataFrame:
 def build_template_dio(dio: pd.DataFrame, cfg: PphConfig, pasal: str = "23") -> PphResult:
     """DIO manual rows -> template. Everything pre-fills except the dokumen
     referensi fields — those live in the physical PDFs, so they stay blank and
-    are flagged for Salsa. Jenis Dokumen Referensi = 07 for manual (real file)."""
+    are flagged for Salsa. Jenis Dokumen Referensi = 02 like every other stream
+    (the old 07 convention ended Jan 2026)."""
     tag = cfg.tag(pasal)
     out, exc, rec = [], [], []
     for i, r in dio.iterrows():
@@ -384,7 +404,6 @@ def build_template_dio(dio: pd.DataFrame, cfg: PphConfig, pasal: str = "23") -> 
         npwp = _npwp16(r.get("NPWP Vendor"))
         kode_uker = str(r.get("Kode Uker") or "").strip().lstrip("0")
         row = _base_row(cfg, pasal)
-        row["Jenis Dokumen Referensi"] = "07"
 
         row["NITKU Pemotong (6 Digit Terakhir)"] = _nitku_from_uker(kode_uker)
         if not row["NITKU Pemotong (6 Digit Terakhir)"]:
@@ -459,33 +478,40 @@ def read_etb_pph(path_or_buf, ro_name: str, pasal: str) -> dict:
         path_or_buf.seek(0)
     wb = openpyxl.load_workbook(path_or_buf, read_only=True, data_only=True)
     ro = ro_name.strip().upper()
-    sheet = next((s for s in wb.sheetnames if s.strip().upper() == ro), None) \
-        or next((s for s in wb.sheetnames if ro in s.upper()), None)
-    out = {}
-    if sheet:
-        ws = wb[sheet]
-        marker = ETB_PPH_MARKER[pasal]
-        col = hdr_row = None
-        for ri, r in enumerate(ws.iter_rows(values_only=True), 1):
+    marker = ETB_PPH_MARKER[pasal]
+
+    def extract(ws):
+        col = None
+        vals = {}
+        for r in ws.iter_rows(values_only=True):
             if col is None:
-                for ci, c in enumerate(r):
-                    if c and "PCA L2" in str(c):
-                        hdr_row = ri
-                        for cj, cc in enumerate(r):
-                            if cc and marker in str(cc).upper():
-                                col = cj
-                                break
-                        break
+                if r and any(c and "PCA L2" in str(c) for c in r):
+                    for cj, cc in enumerate(r):
+                        if cc and marker in str(cc).upper():
+                            col = cj
+                            break
+                    if col is None:
+                        return {}
                 continue
             label = r[0]
             if label is None or "GRAND TOTAL" in str(label).upper():
                 continue
             uker = _uker_from_label(label, ro_name)
-            if uker is None or col is None or col >= len(r):
+            if uker is None or col >= len(r) or r[col] is None:
                 continue
-            v = to_num(r[col])
-            if r[col] is not None:
-                out[uker] = out.get(uker, 0.0) + v
+            vals[uker] = vals.get(uker, 0.0) + to_num(r[col])
+        return vals
+
+    sheet = next((s for s in wb.sheetnames if s.strip().upper() == ro), None) \
+        or next((s for s in wb.sheetnames if ro in s.upper()), None)
+    out = extract(wb[sheet]) if sheet else {}
+    if not out:
+        # older files (e.g. per-RO ETB with a 'Data Olah' tab) have no RO-named
+        # sheet — take the biggest uker->utang block anywhere in the workbook
+        for sn in wb.sheetnames:
+            cand = extract(wb[sn])
+            if len(cand) > len(out):
+                out = cand
     wb.close()
     return out
 
