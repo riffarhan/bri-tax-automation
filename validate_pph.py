@@ -108,6 +108,53 @@ def compare(gen: pd.DataFrame, tpl_path: str, label: str):
         print(f"      diff {e}")
 
 
+def rekon_check(sap_path, res, folder, ro, pasal, cfg):
+    """Compare our per-uker PAJAK/SELISIH against Salsa's Sheet2."""
+    import openpyxl
+    from engine_pph import read_etb_pph, build_rekon_pph, _uker_from_label
+    etbs = [f for f in glob.glob(f"{ROOT}/{folder}/*ETB PPh*.xls*")
+            + glob.glob(f"{ROOT}/{folder}/*ETB*Unifikasi*.xls*") if "~$" not in f]
+    if not etbs:
+        return "(ETB tidak ada)"
+    utang = read_etb_pph(etbs[0], ro, pasal)
+    rekon = build_rekon_pph(res.recon_rows, utang, ro)
+    gen = {int(r["KODE UKER"]): r for _, r in rekon.iterrows()}
+    wb = openpyxl.load_workbook(sap_path, read_only=True, data_only=True)
+    if "Sheet2" not in wb.sheetnames:
+        wb.close(); return "(tidak ada Sheet2)"
+    ws = wb["Sheet2"]
+    rows = list(ws.iter_rows(values_only=True))
+    hi = next((i for i, r in enumerate(rows)
+               if r and any("PCA L2" in str(c) for c in r if c)), 0)
+    rows = rows[hi:]
+    hdr = [str(c).strip().upper() if c else "" for c in rows[0]]
+    # her per-row tax total: TOTAL when the pasal splits buckets (4A2), else PAJAK
+    pj_i = hdr.index("TOTAL") if "TOTAL" in hdr else (hdr.index("PAJAK") if "PAJAK" in hdr else None)
+    sel_i = hdr.index("SELISIH") if "SELISIH" in hdr else None
+    okp = mp = oks = ms = 0
+    for r in rows[1:]:
+        if not r or r[0] is None or "GRAND" in str(r[0]).upper():
+            continue
+        uker = _uker_from_label(r[0], ro)
+        if uker is None:
+            continue
+        g = gen.get(uker)
+        gp = g["PAJAK"] if g is not None and g["PAJAK"] is not None else 0
+        gs = g["SELISIH"] if g is not None else None
+        if pj_i is not None and r[pj_i] is not None and str(r[pj_i]).strip() != "":
+            try:
+                okp, mp = (okp + 1, mp) if abs(gp - float(r[pj_i])) < 2 else (okp, mp + 1)
+            except (TypeError, ValueError):
+                pass
+        if sel_i is not None and r[sel_i] is not None and str(r[sel_i]).strip() != "":
+            try:
+                oks, ms = (oks + 1, ms) if (gs is not None and abs(gs - float(r[sel_i])) < 2) else (oks, ms + 1)
+            except (TypeError, ValueError):
+                pass
+    wb.close()
+    return f"PAJAK {okp}ok/{mp}mm SELISIH {oks}ok/{ms}mm"
+
+
 print("=" * 92)
 print("VALIDASI PPh — generator vs template real")
 print("=" * 92)
@@ -131,6 +178,7 @@ for folder, masa, tahun, bln in RUNS:
                 res = build_template_sap(sap, cfg, pasal)
                 compare(res.template, tpls[0], f"PPh {pasal} ({res.stats['rows']} baris, "
                         f"{res.stats['exceptions']} exc)")
+                print(f"      rekon: {rekon_check(saps[0], res, folder, ro, pasal, cfg)}")
             except Exception as e:
                 print(f"  {pasal}: ❌ {type(e).__name__}: {e}")
         # SIPOBRI

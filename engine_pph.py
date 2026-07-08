@@ -228,10 +228,17 @@ def build_template_sap(sap: pd.DataFrame, cfg: PphConfig, pasal: str) -> PphResu
     for i, r in sap.iterrows():
         nama = str(r.get("Nama") or "").strip()
         kop = str(r.get("KOP") or "").strip()
+        # every pull row's tax counts toward the uker rekon (KOP or not — the
+        # KOP-less deposito/reward rows still sit in the same GL)...
+        cab = str(r.get("Kode Cabang Transaksi") or "").lstrip("0")
+        try:
+            uker = int(cab) if cab else None
+        except ValueError:
+            uker = None
+        rec.append({"uker": uker, "pajak": to_num(r.get("Amt.in loc.cur."))})
         if not kop:
-            # rows without a KOP don't enter the template (deposito/reward etc.
-            # are reconciled in aggregate) — surfaced so Salsa can add back the
-            # few that do need a code.
+            # ...but rows without a KOP don't enter the template — surfaced so
+            # Salsa can add back the few that do need a code.
             exc.append({"Baris": i + 2, "Vendor": nama, "Jenis": "KOP kosong",
                         "Keterangan": "Tidak masuk template — isi kode objek "
                                       "kalau memang perlu dilaporkan"})
@@ -274,13 +281,6 @@ def build_template_sap(sap: pd.DataFrame, cfg: PphConfig, pasal: str) -> PphResu
         row["Tanggal Pemotongan"] = _fmt_date(r.get("Tanggal Pembayaran"))
         row["Referensi"] = f"{tag}_{dok_inv}"
         out.append(row)
-
-        cab = str(r.get("Kode Cabang Transaksi") or "").lstrip("0")
-        try:
-            uker = int(cab) if cab else None
-        except ValueError:
-            uker = None
-        rec.append({"uker": uker, "pajak": abs(to_num(r.get("Amt.in loc.cur.")))})
 
     df = pd.DataFrame(out, columns=TEMPLATE_COLUMNS)
     return PphResult(
@@ -339,7 +339,7 @@ def build_template_sipo(sipo: pd.DataFrame, cfg: PphConfig) -> PphResult:
             uker = int(uker_file) if uker_file else int(float(str(r.get("Branch")).strip()))
         except (TypeError, ValueError):
             uker = None
-        rec.append({"uker": uker, "pajak": abs(to_num(r.get("Jumlah PPH")))})
+        rec.append({"uker": uker, "pajak": to_num(r.get("Jumlah PPH"))})
 
     df = pd.DataFrame(out, columns=TEMPLATE_COLUMNS)
     return PphResult(
@@ -351,28 +351,88 @@ def build_template_sipo(sipo: pd.DataFrame, cfg: PphConfig) -> PphResult:
 
 # ---------------------------------------------------------------- rekon
 
-def build_rekon_pph(results, etb: dict) -> pd.DataFrame:
-    """PAJAK = tax per uker accumulated across every stream vs the ETB PPh
-    Unifikasi balance; SELISIH should net to 0. No branch reclass for PPh
-    (all rows are PEMBAYARAN), but stray branch codes still fold via master."""
+# how each pasal's Utang column is labelled in the ETB PPh Unifikasi pivot
+ETB_PPH_MARKER = {"22": "PASAL 22", "23": "PASAL 23", "4A2": "PASAL 4"}
+
+
+def _uker_from_label(label, ro_name=None) -> int | None:
+    """'00008 -- KC Baturaja' -> 8; 'KANWIL Palembang (Branch)' -> kanwil uker."""
+    s = str(label or "").strip()
+    m = re.match(r"\s*(\d+)\s*--", s)
+    if m:
+        return int(m.group(1))
+    if "KANWIL" in s.upper() and ro_name:
+        want = f"KANWIL {ro_name.strip().upper()}"
+        for k, v in UKER_MASTER.items():
+            if str(v).strip().upper() == want:
+                try:
+                    return int(float(str(k)))
+                except (TypeError, ValueError):
+                    continue
+    return None
+
+
+def read_etb_pph(path_or_buf, ro_name: str, pasal: str) -> dict:
+    """uker -> Utang Pajak for one pasal, from the ETB PPh Unifikasi pivot
+    (per-RO sheet, 'Utang Pajak - PPh Pasal NN - SAP' columns)."""
+    import openpyxl
+    if hasattr(path_or_buf, "seek"):
+        path_or_buf.seek(0)
+    wb = openpyxl.load_workbook(path_or_buf, read_only=True, data_only=True)
+    ro = ro_name.strip().upper()
+    sheet = next((s for s in wb.sheetnames if s.strip().upper() == ro), None) \
+        or next((s for s in wb.sheetnames if ro in s.upper()), None)
+    out = {}
+    if sheet:
+        ws = wb[sheet]
+        marker = ETB_PPH_MARKER[pasal]
+        col = hdr_row = None
+        for ri, r in enumerate(ws.iter_rows(values_only=True), 1):
+            if col is None:
+                for ci, c in enumerate(r):
+                    if c and "PCA L2" in str(c):
+                        hdr_row = ri
+                        for cj, cc in enumerate(r):
+                            if cc and marker in str(cc).upper():
+                                col = cj
+                                break
+                        break
+                continue
+            label = r[0]
+            if label is None or "GRAND TOTAL" in str(label).upper():
+                continue
+            uker = _uker_from_label(label, ro_name)
+            if uker is None or col is None or col >= len(r):
+                continue
+            v = to_num(r[col])
+            if r[col] is not None:
+                out[uker] = out.get(uker, 0.0) + v
+    wb.close()
+    return out
+
+
+def build_rekon_pph(recon_rows: pd.DataFrame, utang: dict, ro_name: str = "") -> pd.DataFrame:
+    """One pasal: PAJAK per uker (signed, negative like SAP Amt.in loc.cur.) vs
+    the ETB Utang; SELISIH = UTANG - PAJAK, 0 when the ledger matches the pull.
+    Mirrors Salsa's Sheet2. No branch reclass (all rows PEMBAYARAN)."""
     pajak = {}
-    for res in results:
-        if res.recon_rows is None:
-            continue
-        for _, r in res.recon_rows.iterrows():
+    if recon_rows is not None:
+        for _, r in recon_rows.iterrows():
             u = r["uker"]
             if u is None or pd.isna(u):
                 continue
             u = CABANG_INDUK.get(int(u), int(u))
             pajak[u] = pajak.get(u, 0.0) + (r["pajak"] or 0.0)
     rows = []
-    for u in sorted(set(etb) | set(pajak)):
-        e = etb.get(u)
-        p = pajak.get(u, 0.0)
-        row = {"KODE UKER": u,
-               "NAMA UKER": UKER_MASTER.get(str(u)) or UKER_MASTER.get(u) or "",
-               "PAJAK": round(p),
-               "ETB": round(e) if e is not None else None,
-               "SELISIH": round((e or 0) + p) if e is not None else None}
-        rows.append(row)
-    return pd.DataFrame(rows, columns=["KODE UKER", "NAMA UKER", "PAJAK", "ETB", "SELISIH"])
+    for u in sorted(set(utang) | set(pajak)):
+        ut = utang.get(u)
+        p = pajak.get(u)
+        rows.append({
+            "KODE UKER": u,
+            "NAMA UKER": UKER_MASTER.get(str(u)) or UKER_MASTER.get(u) or "",
+            "UTANG (ETB)": round(ut) if ut is not None else None,
+            "PAJAK": round(p) if p is not None else None,
+            "SELISIH": round((ut or 0) - (p or 0)),
+        })
+    return pd.DataFrame(rows, columns=["KODE UKER", "NAMA UKER", "UTANG (ETB)",
+                                       "PAJAK", "SELISIH"])
