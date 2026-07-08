@@ -152,6 +152,24 @@ Aturan yang kebukti waktu build:
   `_uker_from_label`.
 - Residual SELISIH ≠ SIPO (dites, bukan): itu memang selisih yang ditelusuri manual.
 
+## Validasi historis Des 2025 – Mei 2026 (8 Jul 2026)
+
+`validate_pph_history.py` — 6 bulan × 2 RO × 4 stream (+ manual), **0 crash**
+walau penamaan file beda 4 gaya antar bulan. Hasil per periode:
+
+- **Feb–Mei 2026 (4 bulan, 8 RO-bulan): 94–100% kritis** di semua stream;
+  SIPOBRI 99.6–100% dengan jumlah baris persis; sisa diff = isian NPWP Salsa.
+- **Des 2025 & Jan 2026: 71–93%** — BUKAN bug: konvensi template lama
+  (Jenis Dok Ref `07` → jadi `02` mulai Feb 2026; Masa Pajak `1` tanpa nol;
+  SIPO lama KOP `-` diisi manual `24-104-17`). Engine target format sekarang.
+- Rekon SELISIH bulan-bulan ber-Sheet2-standar: Feb PLG 23/23, Mar/Apr PLG
+  23/23 (4A2 & 23), Mei PLG 22/23. File SAP lama Sheet2-nya beda layout
+  (dibanding manual, rekon kita tetap kebentuk dari ETB — 17–36 ukers).
+- Edge case yang ketemu & difix: file SIPO duplikat re-download
+  (`152.xls`+`152(1).xls`) di-dedupe by content; KOP kosong SIPO di-flag;
+  ETB lama tanpa sheet per-RO → scan fallback; template REVISI dipakai
+  kalau base nggak ada.
+
 ## Sisa kerjaan
 
 1. **UI**: tab/halaman PPh di app Streamlit (upload SAP per pasal + folder SIPO,
