@@ -22,6 +22,14 @@ def fm_import_full_bytes(result, sheet_name="FM - Import") -> bytes:
     return buf.getvalue()
 
 
+def data_olah_bytes(df) -> bytes:
+    """Salsa's DATA OLAH view: every SAP row + the Coretax join + gap columns."""
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xl:
+        df.to_excel(xl, sheet_name="DATA OLAH", index=False)
+    return buf.getvalue()
+
+
 def rekon_bytes(rekon_df, flagged_df) -> bytes:
     """The REKON sheet + a list of fakturs whose uker needs a manual reclass."""
     buf = io.BytesIO()

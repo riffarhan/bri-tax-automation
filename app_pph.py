@@ -13,8 +13,11 @@ import streamlit as st
 from engine import BULAN_ID
 from engine_pph import (PphConfig, read_sap_pph, read_sipo, read_dio_pph,
                         build_template_sap, build_template_sipo, build_template_dio,
-                        read_etb_pph, build_rekon_pph, TEMPLATE_COLUMNS)
-from writer_pph import template_pph_bytes, workbook_pph_bytes, rekon_pph_bytes
+                        build_data_olah_pph, read_etb_pph, build_rekon_pph,
+                        TEMPLATE_COLUMNS)
+from grid import editable_grid
+from writer_pph import (template_pph_bytes, workbook_pph_bytes, rekon_pph_bytes,
+                        data_olah_pph_bytes)
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PASAL_LABEL = {"22": "PPH 22", "23": "PPH 23", "4A2": "PPH 4 AYAT 2"}
@@ -66,8 +69,8 @@ def _grid(label, res, cfg):
         # uniform dtype: SAP rows carry datetimes, DIO/added rows empty strings —
         # mixed object columns break the Arrow serializer behind data_editor
         df[c] = pd.to_datetime(df[c], errors="coerce")
-    edited = st.data_editor(
-        df, num_rows="dynamic", use_container_width=True, height=320,
+    edited = editable_grid(
+        df, height=320,
         # key ties the editor's edit-state to THIS dataset — without the
         # ro/masa/rowcount suffix, edits made before switching RO/masa/files
         # would silently re-apply to the new rows
@@ -114,6 +117,7 @@ def render(ro: str, masa: int, tahun: int, app_name: str = "Alfa"):
 
     # ---------------------------------------------------------------- build streams
     results = {}          # label -> PphResult
+    sap_raw = {}          # label -> (sap df, pasal) for the Data Olah download
     for f in sap_files or []:
         pasal = detect_pasal(f.name)
         if pasal is None:
@@ -125,15 +129,11 @@ def render(ro: str, masa: int, tahun: int, app_name: str = "Alfa"):
                 st.warning(f"«{f.name}»: tidak ada sheet tarikan SAP yang dikenali.")
                 continue
             label = PASAL_LABEL[pasal]
-            res = build_template_sap(sap, cfg, pasal)
-            if label in results:            # second file for the same pasal
-                res.template = pd.concat([results[label].template, res.template],
-                                         ignore_index=True)
-                res.exceptions = pd.concat([results[label].exceptions, res.exceptions],
-                                           ignore_index=True)
-                res.recon_rows = pd.concat([results[label].recon_rows, res.recon_rows],
-                                           ignore_index=True)
-            results[label] = res
+            if label in sap_raw:
+                sap = pd.concat([sap_raw[label][0], sap], ignore_index=True)
+            sap_raw[label] = (sap, pasal)
+            # sap is cumulative per pasal, so the rebuild covers every file
+            results[label] = build_template_sap(sap, cfg, pasal)
         except Exception as e:  # noqa
             st.error(f"Gagal baca «{f.name}»: {e}")
     if sipo_files:
@@ -243,8 +243,19 @@ def render(ro: str, masa: int, tahun: int, app_name: str = "Alfa"):
             f"⬇️ Template {label}", template_pph_bytes(df),
             file_name=fname.get(label, f"Template {label}.xlsx"),
             mime=XLSX, use_container_width=True, key=f"dl_{label}")
-    st.download_button(
+    w1, w2 = st.columns(2)
+    w1.download_button(
         "⬇️ Review workbook (semua stream + exceptions + rekon)",
         workbook_pph_bytes(edited, {l: r.exceptions for l, r in results.items()}, rekons),
         file_name=f"Review PPh {cfg.ro_name} {bulan} {cfg.tahun}.xlsx",
         mime=XLSX, use_container_width=True)
+    if sap_raw:
+        olahs = {label: build_data_olah_pph(sap, cfg, pasal)
+                 for label, (sap, pasal) in sap_raw.items()}
+        w2.download_button(
+            "⬇️ Data Olah (olahan SAP per pasal + gap setoran)",
+            data_olah_pph_bytes(olahs),
+            file_name=f"DATA OLAH PPh {cfg.ro_name} {bulan} {cfg.tahun}.xlsx",
+            mime=XLSX, use_container_width=True,
+            help="Semua baris tarikan SAP + uker/NITKU/referensi + "
+                 "PPh hitung (DPP × tarif) vs setoran SAP per baris.")

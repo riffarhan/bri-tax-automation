@@ -16,8 +16,10 @@ import pandas as pd
 from engine import (Config, read_sap, build_doc_index, normalize_coretax,
                     coretax_seed_from_sap, read_coretax, reconcile, BULAN_ID,
                     read_etb, build_cabang_index, build_rekon, ETB_SHEET_BY_RO,
-                    read_uker_names)
-from writer import fm_import_bytes, fm_import_full_bytes, workbook_bytes, rekon_bytes
+                    read_uker_names, build_data_olah)
+from grid import editable_grid
+from writer import (fm_import_bytes, fm_import_full_bytes, workbook_bytes,
+                    rekon_bytes, data_olah_bytes)
 
 # ---- branding (name combines Alkaina + Farhan) ------------------------------
 APP_NAME = "Alfa"
@@ -129,8 +131,10 @@ else:
                "faktur that isn't *approved*. For fakturs that exist only in "
                "Coretax, add a row at the bottom.")
     seed = coretax_seed_from_sap(sap, cfg)
-    edited = st.data_editor(
-        seed, num_rows="dynamic", use_container_width=True, height=340,
+    _fp = f"{cfg.ro_name}_{cfg.masa}_{cfg.tahun}_{len(seed)}_" \
+          f"{str(seed['nomor_faktur'].iloc[0]) if len(seed) else ''}"
+    edited = editable_grid(
+        seed, key=f"ppn_{_fp}", height=340,
         column_config={
             "nomor_faktur": st.column_config.TextColumn(
                 "Nomor Faktur", width="medium", help="Nomor Faktur Pajak (e-faktur)."),
@@ -282,9 +286,17 @@ d1.download_button("⬇️ Template PSIAP (siap upload)", fm_import_bytes(res),
 d2.download_button("⬇️ Versi full (dengan kolom review)", fm_import_full_bytes(res),
                    file_name=f"FM-Import FULL PPN WAPU {ro_masa}.xlsx",
                    mime=XLSX, use_container_width=True)
-st.download_button("⬇️ Review workbook (template + exceptions)", workbook_bytes(res),
+d3, d4 = st.columns(2)
+d3.download_button("⬇️ Review workbook (template + exceptions)", workbook_bytes(res),
                    file_name=f"Review PPN WAPU {ro_masa}.xlsx",
                    mime=XLSX, use_container_width=True)
+d4.download_button("⬇️ Data Olah (olahan SAP + gap vs faktur)",
+                   data_olah_bytes(build_data_olah(sap, coretax, cfg)),
+                   file_name=f"DATA OLAH PPN WAPU {ro_masa}.xlsx",
+                   mime=XLSX, use_container_width=True,
+                   help="Semua baris SAP (termasuk RECLASS) + join Coretax per "
+                        "baris + kolom gap: DPP Coretax − SAP, PPN faktur, "
+                        "pajak SAP − Coretax.")
 
 st.divider()
 st.caption(f"{APP_NAME} · made by Farhan, for Alkaina 🤍")

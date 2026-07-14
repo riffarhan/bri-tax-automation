@@ -17,6 +17,15 @@ def template_pph_bytes(result_or_df, sheet_name="Template") -> bytes:
     return buf.getvalue()
 
 
+def data_olah_pph_bytes(olahs: dict) -> bytes:
+    """One workbook, a DATA OLAH sheet per pasal."""
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xl:
+        for label, df in olahs.items():
+            df.to_excel(xl, sheet_name=f"OLAH {label}"[:31], index=False)
+    return buf.getvalue()
+
+
 def rekon_pph_bytes(rekons: dict) -> bytes:
     """One workbook, a REKON sheet per pasal."""
     buf = io.BytesIO()

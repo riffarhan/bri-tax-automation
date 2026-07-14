@@ -61,6 +61,7 @@ def _load_csv_map(filename, key, val, valfn=str):
 
 UKER_MASTER = _load_csv_map("uker_master.csv", "kode_uker", "nama_uker")  # names
 CABANG_INDUK = _load_csv_map("cabang_induk.csv", "cabang", "induk", int)  # branch->induk
+UKER_NITKU = _load_csv_map("uker_nitku.csv", "kode_uker", "nitku_suffix")  # last-6
 
 
 @dataclass
@@ -603,6 +604,69 @@ def resolve_sap_info(faktur, npwp, dpp, by_faktur, by_amt, by_suffix) -> dict:
             or by_suffix.get(faktur_key(faktur, 7))
             or by_amt.get((norm_id(npwp), round(to_num(dpp))))
             or {})
+
+
+def build_data_olah(sap: pd.DataFrame, coretax: pd.DataFrame, cfg: Config) -> pd.DataFrame:
+    """Salsa's DATA OLAH view: EVERY SAP row (incl. RECLASS) enriched with the
+    resolved uker + the per-row Coretax join, so the gap between the SAP setoran
+    and the faktur is visible per baris. Mirrors her sheet's blue columns."""
+    ct = {}
+    if coretax is not None:
+        for _, c in coretax.iterrows():
+            fk = str(c.get("nomor_faktur") or "").strip()
+            if fk and fk not in ct:
+                ct[fk] = c
+    rows = []
+    for _, r in sap.iterrows():
+        uker = derive_uker(r.get("kode_cabang"))
+        try:
+            uker = int(uker) if uker is not None else None
+        except (TypeError, ValueError):
+            uker = None
+        uker = CABANG_INDUK.get(uker, uker) if uker is not None else None
+        fk = str(r.get("nomor_faktur") or "").strip()
+        c = ct.get(fk)
+        amt = to_num(r.get("amt_loc"))
+        row = {
+            "Kode Cabang Transaksi": r.get("kode_cabang"),
+            "KODE UKER": uker,
+            "NAMA UKER": UKER_MASTER.get(uker, "") if uker is not None else "",
+            "NITKU 6 DIGIT": UKER_NITKU.get(uker, "") if uker is not None else "",
+            "Dokumen Invoice": r.get("dokumen_invoice"),
+            "REFERENSI": f"{cfg.label}_{r.get('dokumen_invoice') or ''}",
+            "Dokumen Pembayaran": r.get("dokumen_pembayaran"),
+            "Dokumen Status": r.get("dokumen_status"),
+            "Masa Pajak SAP": r.get("masa_sap"),
+            "Tahun Pajak SAP": r.get("tahun_sap"),
+            "DPP SAP": to_num(r.get("dpp_sap")),
+            "Amt.in loc.cur.": amt,
+            "NIK/NPWP/TIN": r.get("npwp_sap"),
+            "Nama": r.get("nama_sap"),
+            "Nomor FP": fk,
+            "Tanggal Faktur SAP": to_date(r.get("tgl_faktur_sap")),
+        }
+        if c is not None:
+            dpp_c, ppn_c = to_num(c.get("dpp")), to_num(c.get("ppn"))
+            dpp_s = to_num(r.get("dpp_sap"))
+            row.update({
+                "NPWP CORETAX": c.get("npwp_penjual"),
+                "NAMA VENDOR": c.get("nama_penjual"),
+                "MASA PPN": c.get("masa"),
+                "TAHUN": c.get("tahun"),
+                "STATUS": c.get("status"),
+                "DPP CORETAX": dpp_c,
+                "DPP CORETAX - SAP": round(dpp_c - dpp_s) if dpp_c else None,
+                "PPN FAKTUR CORETAX": ppn_c,
+                "PAJAK SAP - CORETAX": round(amt + ppn_c) if ppn_c else None,
+            })
+        else:
+            row.update({"NPWP CORETAX": "", "NAMA VENDOR": "", "MASA PPN": None,
+                        "TAHUN": None, "STATUS": "tidak ada di Coretax" if
+                        r.get("dokumen_status") == "INVOICE" else "",
+                        "DPP CORETAX": None, "DPP CORETAX - SAP": None,
+                        "PPN FAKTUR CORETAX": None, "PAJAK SAP - CORETAX": None})
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def build_rekon(coretax: pd.DataFrame, sap: pd.DataFrame, etb: dict, cfg: Config,

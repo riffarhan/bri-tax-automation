@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from engine import (BULAN_ID, norm_id, to_num, to_date, _load_csv_map,
-                    CABANG_INDUK, UKER_MASTER)
+                    CABANG_INDUK, UKER_MASTER, UKER_NITKU)
 
 TEMPLATE_COLUMNS = [
     "NPWP Pemotong", "NITKU Pemotong (6 Digit Terakhir)", "Masa Pajak",
@@ -49,8 +49,6 @@ PASAL = {
     "4A2":     {"jenis": "PPH4-2", "tag": "PPH4A2SAP"},
     "SIPOBRI": {"jenis": "PPH23",  "tag": "PPH23SIPO"},
 }
-
-UKER_NITKU = _load_csv_map("uker_nitku.csv", "kode_uker", "nitku_suffix")
 
 BULAN_LONG = {"JANUARI": 1, "FEBRUARI": 2, "MARET": 3, "APRIL": 4, "MEI": 5,
               "JUNI": 6, "JULI": 7, "AGUSTUS": 8, "SEPTEMBER": 9,
@@ -366,6 +364,65 @@ def build_template_sipo(sipo: pd.DataFrame, cfg: PphConfig) -> PphResult:
         exceptions=pd.DataFrame(exc, columns=["Baris", "Vendor", "Jenis", "Keterangan"]),
         recon_rows=pd.DataFrame(rec, columns=["uker", "pajak"]),
         stats={"pasal": "SIPOBRI", "rows": len(df), "exceptions": len(exc)})
+
+
+def _rate(v) -> float:
+    """'1.5%' / '2%' / 0.015 -> 0.015."""
+    s = str(v or "").strip().replace(",", ".")
+    if s.endswith("%"):
+        try:
+            return float(s[:-1]) / 100
+        except ValueError:
+            return 0.0
+    return to_num(v)
+
+
+def build_data_olah_pph(sap: pd.DataFrame, cfg: PphConfig, pasal: str) -> pd.DataFrame:
+    """Salsa's DATA OLAH view for one pasal: every SAP pull row + the derived
+    uker/NITKU/referensi columns + the gap between the SAP setoran and the tax
+    computed from the invoice (DPP x Rate) per baris."""
+    tag = cfg.tag(pasal)
+    rows = []
+    for _, r in sap.iterrows():
+        cab = str(r.get("Kode Cabang Transaksi") or "").lstrip("0")
+        try:
+            uker = int(cab) if cab else None
+        except ValueError:
+            uker = None
+        uker_f = CABANG_INDUK.get(uker, uker) if uker is not None else None
+        nitku = norm_id(r.get("NITKU"))
+        dpp = to_num(r.get("DPP Amount Loc Currency WHT"))
+        amt = to_num(r.get("Amt.in loc.cur."))
+        rate = _rate(r.get("Rate Pajak"))
+        hitung = round(dpp * rate)
+        rows.append({
+            "Kode Cabang Transaksi": r.get("Kode Cabang Transaksi"),
+            "UKER": uker_f,
+            "NAMA UKER": UKER_MASTER.get(uker_f, "") if uker_f is not None else "",
+            "NITKU 6 DIGIT": (nitku[-6:] if len(nitku) >= 6
+                              else UKER_NITKU.get(uker_f, "")),
+            "REFERENSI": f"{tag}_{r.get('Dokumen Invoice') or ''}",
+            "Dokumen Invoice": r.get("Dokumen Invoice"),
+            "Dokumen Pembayaran": r.get("Dokumen Pembayaran"),
+            "Dokumen Status": r.get("Dokumen Status"),
+            "Masa Pajak": r.get("Masa Pajak"),
+            "Tahun Pajak": r.get("Tahun Pajak"),
+            "Tanggal Pembayaran": to_date(r.get("Tanggal Pembayaran")),
+            "DPP (WHT)": dpp,
+            "Rate Pajak": r.get("Rate Pajak"),
+            "KOP": str(r.get("KOP") or "").strip(),
+            "NIK/NPWP/TIN": r.get("NIK/NPWP/TIN"),
+            "Nama": r.get("Nama"),
+            "Nomor Invoice": r.get("Nomor Invoice"),
+            "Tanggal Invoice": to_date(r.get("Tanggal Invoice")),
+            "NITKU": r.get("NITKU"),
+            "PPH HITUNG (DPP x Rate)": hitung,
+            "SETORAN SAP (Amt)": amt,
+            "SELISIH SETORAN vs HITUNG": round(amt + hitung),
+            "CATATAN": ("KOP kosong — tidak masuk template"
+                        if not str(r.get("KOP") or "").strip() else ""),
+        })
+    return pd.DataFrame(rows)
 
 
 def read_dio_pph(path_or_buf) -> pd.DataFrame:
